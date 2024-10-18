@@ -253,7 +253,7 @@ public class VelocityServer implements ProxyServer, ForwardingAudience {
     serverKeyPair = EncryptionUtils.createRsaKeyPair(1024);
 
     cm.logChannelInformation();
-
+    /* Abomination - disable commands
     // Initialize commands first
     final BrigadierCommand velocityParentCommand = VelocityCommand.create(this);
     commandManager.register(
@@ -284,6 +284,7 @@ public class VelocityServer implements ProxyServer, ForwardingAudience {
             .build(),
         shutdownCommand
     );
+    */
     new GlistCommand(this).register();
     new SendCommand(this).register();
 

@@ -333,7 +333,7 @@ public class BackendPlaySessionHandler implements MinecraftSessionHandler {
   @Override
   public boolean handle(TabCompleteResponsePacket packet) {
     playerSessionHandler.handleTabCompleteResponse(packet);
-    return true;
+    return false;
   }
 
   @Override

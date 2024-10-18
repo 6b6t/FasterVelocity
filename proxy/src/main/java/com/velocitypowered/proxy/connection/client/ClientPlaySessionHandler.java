@@ -285,6 +285,7 @@ public class ClientPlaySessionHandler implements MinecraftSessionHandler {
 
   @Override
   public boolean handle(TabCompleteRequestPacket packet) {
+    if (true) return false; // Abomination
     boolean isCommand = !packet.isAssumeCommand() && packet.getCommand().startsWith("/");
 
     if (isCommand) {
@@ -763,6 +764,7 @@ public class ClientPlaySessionHandler implements MinecraftSessionHandler {
    * @param response the tab complete response from the backend
    */
   public void handleTabCompleteResponse(TabCompleteResponsePacket response) {
+    /*
     if (outstandingTabComplete != null && !outstandingTabComplete.isAssumeCommand()) {
       if (outstandingTabComplete.getCommand().startsWith("/")) {
         this.finishCommandTabComplete(outstandingTabComplete, response);
@@ -773,11 +775,12 @@ public class ClientPlaySessionHandler implements MinecraftSessionHandler {
     } else {
       // Nothing to do
       player.getConnection().write(response);
-    }
+    }*/
   }
 
   private void finishCommandTabComplete(TabCompleteRequestPacket request,
                                         TabCompleteResponsePacket response) {
+/*
     String command = request.getCommand().substring(1);
     server.getCommandManager().offerBrigadierSuggestions(player, command)
         .thenAcceptAsync(offers -> {
@@ -811,11 +814,12 @@ public class ClientPlaySessionHandler implements MinecraftSessionHandler {
                   + " with request {} and response {}",
               request, response, ex);
           return null;
-        });
+        });*/
   }
 
   private void finishRegularTabComplete(TabCompleteRequestPacket request,
                                         TabCompleteResponsePacket response) {
+/*
     List<String> offers = new ArrayList<>();
     for (Offer offer : response.getOffers()) {
       offers.add(offer.getText());
@@ -833,7 +837,7 @@ public class ClientPlaySessionHandler implements MinecraftSessionHandler {
                   + " with request {} and response{}",
               request, response, ex);
           return null;
-        });
+        });*/
   }
 
   /**

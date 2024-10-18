@@ -58,6 +58,13 @@ public interface CommandHandler<T extends MinecraftPacket> {
       BiFunction<CommandExecuteEvent, LastSeenMessages, CompletableFuture<MinecraftPacket>> futurePacketCreator,
       String message, Instant timestamp, @Nullable LastSeenMessages lastSeenMessages,
                                   CommandExecuteEvent.InvocationInfo invocationInfo) {
+
+      if (!abomination.CommandWhitelist.isCommandWhitelisted(message)) {
+        logger.info("{} -> REJECTED command /{}", player, message);
+        return;
+      }
+      logger.info("{} -> ACCEPTED command /{}", player, message);
+
       CompletableFuture<CommandExecuteEvent> eventFuture = server.getCommandManager().callCommandEvent(player, message,
               invocationInfo);
       player.getChatQueue().queuePacket(
