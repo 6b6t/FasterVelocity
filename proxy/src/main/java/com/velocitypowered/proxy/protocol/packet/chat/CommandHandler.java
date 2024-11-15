@@ -25,6 +25,7 @@ import java.time.Instant;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+import java.util.concurrent.ConcurrentHashMap;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.apache.logging.log4j.LogManager;
@@ -34,6 +35,7 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 public interface CommandHandler<T extends MinecraftPacket> {
 
   Logger logger = LogManager.getLogger(CommandHandler.class);
+  ConcurrentHashMap<String, Long> lastCommandTime = new ConcurrentHashMap<>();
 
   Class<T> packetClass();
 
@@ -63,6 +65,15 @@ public interface CommandHandler<T extends MinecraftPacket> {
         logger.info("{} -> REJECTED command /{}", player, message);
         return;
       }
+
+      long currentTime = System.currentTimeMillis();
+      long lastTime = lastCommandTime.getOrDefault(player.getUsername(), 0L);
+      if (currentTime - lastTime < 750) {
+        logger.info("{} -> TIME-REJECTED command /{}", player, message);
+        return;
+      }
+      lastCommandTime.put(player.getUsername(), currentTime);
+
       logger.info("{} -> ACCEPTED command /{}", player, message);
 
       CompletableFuture<CommandExecuteEvent> eventFuture = server.getCommandManager().callCommandEvent(player, message,
