@@ -79,7 +79,10 @@ public class CommandWhitelist {
         "tp",
         "gamemode",
         "give",
-        "chatcolor"
+        "chatcolor",
+        "christmas",
+        "balloons",
+        "balloon"
     ));
 
     public static boolean isCommandWhitelisted(String input) {
