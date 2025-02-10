@@ -83,7 +83,9 @@ public class CommandWhitelist {
         "christmas",
         "balloons",
         "balloon",
-        "sit"
+        "sit",
+        "commandwhitelist",
+        "link"
     ));
 
     public static boolean isCommandWhitelisted(String input) {
