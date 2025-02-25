@@ -151,6 +151,7 @@ dependencies {
     implementation(libs.netty.transport.native.kqueue)
     implementation(variantOf(libs.netty.transport.native.kqueue) { classifier("osx-x86_64") })
     implementation(variantOf(libs.netty.transport.native.kqueue) { classifier("osx-aarch_64") })
+    implementation("com.github.luben:zstd-jni:1.5.5-5")
 
     implementation(libs.jopt)
     implementation(libs.terminalconsoleappender)

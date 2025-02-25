@@ -21,12 +21,14 @@ import static com.velocitypowered.natives.util.MoreByteBufUtils.ensureCompatible
 import static com.velocitypowered.natives.util.MoreByteBufUtils.preferredBuffer;
 import static com.velocitypowered.proxy.protocol.util.NettyPreconditions.checkFrame;
 
+import com.github.luben.zstd.Zstd;
 import com.velocitypowered.natives.compression.VelocityCompressor;
 import com.velocitypowered.proxy.protocol.ProtocolUtils;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.MessageToMessageDecoder;
 import java.util.List;
+import java.util.zip.DataFormatException;
 
 /**
  * Decompresses a Minecraft packet.
@@ -72,7 +74,29 @@ public class MinecraftCompressDecoder extends MessageToMessageDecoder<ByteBuf> {
     ByteBuf compatibleIn = ensureCompatible(ctx.alloc(), compressor, in);
     ByteBuf uncompressed = preferredBuffer(ctx.alloc(), compressor, claimedUncompressedSize);
     try {
-      compressor.inflate(compatibleIn, uncompressed, claimedUncompressedSize);
+      try {
+        compressor.inflate(compatibleIn, uncompressed, claimedUncompressedSize);
+      } catch (DataFormatException e) {
+        // Failed with zlib, try Zstd
+        uncompressed.clear(); // Reset the buffer for reuse
+
+        // Get the compressed data as a byte array
+        byte[] compressedData = new byte[compatibleIn.readableBytes()];
+        int readerIndex = compatibleIn.readerIndex();
+        compatibleIn.getBytes(readerIndex, compressedData);
+
+        // Decompress with Zstd
+        byte[] decompressedData = new byte[claimedUncompressedSize];
+        long decompressedSize = Zstd.decompress(decompressedData, compressedData);
+
+        // Verify the decompressed size matches what was claimed
+        checkFrame(decompressedSize == claimedUncompressedSize,
+            "Zstd decompressed size %s does not match claimed size %s",
+            decompressedSize, claimedUncompressedSize);
+
+        // Write the decompressed data to the output buffer
+        uncompressed.writeBytes(decompressedData);
+      }
       out.add(uncompressed);
     } catch (Exception e) {
       uncompressed.release();
