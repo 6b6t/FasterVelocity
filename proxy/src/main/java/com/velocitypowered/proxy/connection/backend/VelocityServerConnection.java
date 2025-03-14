@@ -19,6 +19,8 @@ package com.velocitypowered.proxy.connection.backend;
 
 import static com.velocitypowered.proxy.connection.forge.legacy.LegacyForgeConstants.HANDSHAKE_HOSTNAME_TOKEN;
 import static com.velocitypowered.proxy.network.Connections.HANDLER;
+import static com.velocitypowered.proxy.network.Connections.VIA_DECODER;
+import static com.velocitypowered.proxy.network.Connections.VIA_ENCODER;
 import static java.util.Objects.requireNonNull;
 
 import com.google.common.base.Preconditions;
@@ -39,6 +41,7 @@ import com.velocitypowered.proxy.connection.PlayerDataForwarding;
 import com.velocitypowered.proxy.connection.client.ConnectedPlayer;
 import com.velocitypowered.proxy.connection.forge.modern.ModernForgeConnectionType;
 import com.velocitypowered.proxy.connection.util.ConnectionRequestResults.Impl;
+import com.velocitypowered.proxy.network.capture.PacketCaptureManager;
 import com.velocitypowered.proxy.protocol.StateRegistry;
 import com.velocitypowered.proxy.protocol.packet.HandshakePacket;
 import com.velocitypowered.proxy.protocol.packet.JoinGamePacket;
@@ -108,6 +111,34 @@ public class VelocityServerConnection implements MinecraftConnectionAssociation,
             connection = new MinecraftConnection(future.channel(), server);
             connection.setAssociation(VelocityServerConnection.this);
             future.channel().pipeline().addLast(HANDLER, connection);
+
+            // Add packet capture handler if enabled
+            if (server.getPacketCaptureManager() != null && server.getPacketCaptureManager().isEnabled()) {
+              // Add after VIA_DECODER (if it exists) or before VIA_ENCODER
+              if (future.channel().pipeline().get(VIA_DECODER) != null) {
+                future.channel().pipeline().addBefore(
+                    VIA_DECODER,
+                    com.velocitypowered.proxy.network.capture.PacketCaptureHandler.name(),
+                    new com.velocitypowered.proxy.network.capture.PacketCaptureHandler(
+                        server.getPacketCaptureManager(), VelocityServerConnection.this)
+                );
+              } else if (future.channel().pipeline().get(VIA_ENCODER) != null) {
+                future.channel().pipeline().addAfter(
+                    VIA_ENCODER,
+                    com.velocitypowered.proxy.network.capture.PacketCaptureHandler.name(),
+                    new com.velocitypowered.proxy.network.capture.PacketCaptureHandler(
+                        server.getPacketCaptureManager(), VelocityServerConnection.this)
+                );
+              }/* else {
+                // Fallback to the previous position if VIA handlers aren't in the pipeline yet
+                future.channel().pipeline().addBefore(
+                    HANDLER,
+                    com.velocitypowered.proxy.network.capture.PacketCaptureHandler.name(),
+                    new com.velocitypowered.proxy.network.capture.PacketCaptureHandler(
+                        server.getPacketCaptureManager(), VelocityServerConnection.this)
+                );
+              }*/
+            }
 
             // Kick off the connection process
             if (!connection.setActiveSessionHandler(StateRegistry.HANDSHAKE)) {
@@ -246,6 +277,10 @@ public class VelocityServerConnection implements MinecraftConnectionAssociation,
   public void disconnect() {
     if (connection != null) {
       gracefulDisconnect = true;
+      // Stop packet capture if enabled
+      if (server.getPacketCaptureManager() != null && server.getPacketCaptureManager().isEnabled()) {
+        server.getPacketCaptureManager().stopCapture(this);
+      }
       connection.close(false);
       connection = null;
     }

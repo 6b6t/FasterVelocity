@@ -73,18 +73,17 @@ public class CommandWhitelist {
         "shop",
         "skin",
         "skins",
-
         "summon",
-        "execute",
-        "tp",
-        "gamemode",
+//        "execute",
+//        "tp",
+//        "gamemode",
         "give",
         "chatcolor",
         "christmas",
         "balloons",
         "balloon",
         "sit",
-        "commandwhitelist",
+//        "commandwhitelist",
         "link"
     ));
 

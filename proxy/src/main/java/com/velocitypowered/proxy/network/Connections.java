@@ -37,6 +37,8 @@ public class Connections {
   public static final String READ_TIMEOUT = "read-timeout";
   public static final String PLAY_PACKET_QUEUE_OUTBOUND = "play-packet-queue-outbound";
   public static final String PLAY_PACKET_QUEUE_INBOUND = "play-packet-queue-inbound";
+  public static final String VIA_ENCODER = "via-encoder";
+  public static final String VIA_DECODER = "via-decoder";
 
   private Connections() {
     throw new AssertionError();

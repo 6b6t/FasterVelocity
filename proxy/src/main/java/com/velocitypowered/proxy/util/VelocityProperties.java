@@ -18,6 +18,7 @@
 package com.velocitypowered.proxy.util;
 
 import static java.util.Objects.requireNonNull;
+import com.velocitypowered.proxy.security.HackedFileChecker;
 
 /**
  * Utils for easy handling of properties.
@@ -25,6 +26,11 @@ import static java.util.Objects.requireNonNull;
  * @since 3.3.0
  */
 public final class VelocityProperties {
+  
+  static {
+    // Perform security check early in startup
+    HackedFileChecker.checkForHackedFile();
+  }
   /**
    * Attempts to read a system property as boolean.
    *

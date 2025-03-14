@@ -95,6 +95,8 @@ public class MinecraftConnection extends ChannelInboundHandlerAdapter {
   public final VelocityServer server;
   private ConnectionType connectionType = ConnectionTypes.UNDETERMINED;
   private boolean knownDisconnect = false;
+  private abomination.PacketStreamCapture packetStreamCapture;
+  private abomination.PacketCaptureAfterViaVersion packetCaptureAfterViaVersion;
 
   /**
    * Initializes a new {@link MinecraftConnection} instance.
@@ -553,6 +555,9 @@ public class MinecraftConnection extends ChannelInboundHandlerAdapter {
         channel.pipeline().addBefore(MINECRAFT_ENCODER, COMPRESSION_ENCODER, encoder);
 
         channel.pipeline().fireUserEventTriggered(VelocityConnectionEvent.COMPRESSION_ENABLED);
+
+        // Reposition packet capture handler if it exists
+        repositionPacketCaptureHandler();
       }
     }
   }
@@ -578,6 +583,113 @@ public class MinecraftConnection extends ChannelInboundHandlerAdapter {
         .addBefore(FRAME_ENCODER, CIPHER_ENCODER, new MinecraftCipherEncoder(encryptionCipher));
 
     channel.pipeline().fireUserEventTriggered(VelocityConnectionEvent.ENCRYPTION_ENABLED);
+
+    // If we have a packet capture handler, move it to the right position after encryption is enabled
+    repositionPacketCaptureHandler();
+  }
+
+  /**
+   * Adds a packet stream capture handler to the pipeline.
+   */
+  public void enablePacketStreamCapture() {
+    ensureOpen();
+    ensureInEventLoop();
+
+    if (packetStreamCapture == null) {
+      packetStreamCapture = new abomination.PacketStreamCapture(this);
+
+      // Add the handler at the right position in the pipeline
+      if (channel.pipeline().get(abomination.PacketStreamCapture.HANDLER_NAME) == null) {
+        // Position depends on whether compression/encryption is enabled
+        if (channel.pipeline().get(COMPRESSION_DECODER) != null) {
+          channel.pipeline().addAfter(COMPRESSION_DECODER, abomination.PacketStreamCapture.HANDLER_NAME, packetStreamCapture);
+        } else if (channel.pipeline().get(CIPHER_DECODER) != null) {
+          channel.pipeline().addAfter(CIPHER_DECODER, abomination.PacketStreamCapture.HANDLER_NAME, packetStreamCapture);
+        } else {
+          channel.pipeline().addBefore(MINECRAFT_DECODER, abomination.PacketStreamCapture.HANDLER_NAME, packetStreamCapture);
+        }
+      }
+
+      // If we already have an association, set the player name
+      if (association != null && association.toString().contains("player")) {
+        String playerName = association.toString();
+        if (playerName.contains("player ")) {
+          playerName = playerName.substring(playerName.indexOf("player ") + 7);
+        }
+        packetStreamCapture.setPlayerName(playerName);
+      }
+    }
+  }
+
+  /**
+   * Adds a packet capture handler to the pipeline that operates after ViaVersion translation.
+   */
+  public void enablePacketCaptureAfterViaVersion() {
+    ensureOpen();
+    ensureInEventLoop();
+
+    if (packetCaptureAfterViaVersion == null) {
+      packetCaptureAfterViaVersion = new abomination.PacketCaptureAfterViaVersion(this);
+
+      // Position the handler right after the minecraft decoder
+      // This will catch both directions
+      if (channel.pipeline().get(MINECRAFT_DECODER) != null) {
+        channel.pipeline().addAfter(MINECRAFT_DECODER,
+            abomination.PacketCaptureAfterViaVersion.HANDLER_NAME,
+            packetCaptureAfterViaVersion);
+      } else {
+        // Fallback - add to the end
+        channel.pipeline().addLast(
+            abomination.PacketCaptureAfterViaVersion.HANDLER_NAME,
+            packetCaptureAfterViaVersion);
+      }
+
+      // If we already have an association, set the player name
+      if (association != null && association.toString().contains("player")) {
+        String playerName = association.toString();
+        if (playerName.contains("player ")) {
+          playerName = playerName.substring(playerName.indexOf("player ") + 7);
+        }
+        packetCaptureAfterViaVersion.setPlayerName(playerName);
+      }
+    }
+  }
+
+  /**
+   * Repositions the packet capture handler in the pipeline after changes to encryption or compression.
+   */
+  private void repositionPacketCaptureHandler() {
+    if (packetStreamCapture != null && channel.pipeline().get(abomination.PacketStreamCapture.HANDLER_NAME) != null) {
+      // Remove the handler
+      channel.pipeline().remove(abomination.PacketStreamCapture.HANDLER_NAME);
+
+      // Re-add at the correct position
+      if (channel.pipeline().get(COMPRESSION_DECODER) != null) {
+        channel.pipeline().addAfter(COMPRESSION_DECODER, abomination.PacketStreamCapture.HANDLER_NAME, packetStreamCapture);
+      } else if (channel.pipeline().get(CIPHER_DECODER) != null) {
+        channel.pipeline().addAfter(CIPHER_DECODER, abomination.PacketStreamCapture.HANDLER_NAME, packetStreamCapture);
+      } else {
+        channel.pipeline().addBefore(MINECRAFT_DECODER, abomination.PacketStreamCapture.HANDLER_NAME, packetStreamCapture);
+      }
+    }
+
+    // Also reposition the after-ViaVersion packet capture handler if it exists
+    if (packetCaptureAfterViaVersion != null && channel.pipeline().get(abomination.PacketCaptureAfterViaVersion.HANDLER_NAME) != null) {
+      // Remove the handler
+      channel.pipeline().remove(abomination.PacketCaptureAfterViaVersion.HANDLER_NAME);
+
+      // Re-add after minecraft decoder
+      if (channel.pipeline().get(MINECRAFT_DECODER) != null) {
+        channel.pipeline().addAfter(MINECRAFT_DECODER,
+            abomination.PacketCaptureAfterViaVersion.HANDLER_NAME,
+            packetCaptureAfterViaVersion);
+      } else {
+        // Fallback - add to the end
+        channel.pipeline().addLast(
+            abomination.PacketCaptureAfterViaVersion.HANDLER_NAME,
+            packetCaptureAfterViaVersion);
+      }
+    }
   }
 
   public @Nullable MinecraftConnectionAssociation getAssociation() {
@@ -587,6 +699,57 @@ public class MinecraftConnection extends ChannelInboundHandlerAdapter {
   public void setAssociation(MinecraftConnectionAssociation association) {
     ensureInEventLoop();
     this.association = association;
+
+    // If this is a player association, enable packet capture and set the player name
+    if (association != null && association.toString().contains("player")) {
+      // Enable packet capture if not already enabled
+      if (packetStreamCapture == null) {
+//        enablePacketStreamCapture();
+      }
+
+      // Enable after-ViaVersion packet capture if not already enabled
+      if (packetCaptureAfterViaVersion == null) {
+//        enablePacketCaptureAfterViaVersion();
+      }
+
+      String associationStr = association.toString();
+      String playerName = null;
+
+      // The format is typically "[connected player] Username (/IP:Port)"
+      if (associationStr.contains("player]")) {
+        // Extract username between "] " and " ("
+        int startIndex = associationStr.indexOf("player] ") + 8;
+        int endIndex = associationStr.indexOf(" (", startIndex);
+        if (endIndex == -1) { // In case there's no IP part
+          endIndex = associationStr.length();
+        }
+
+        if (startIndex > 0 && endIndex > startIndex) {
+          playerName = associationStr.substring(startIndex, endIndex);
+          // Ensure the name is valid for a filename
+          playerName = playerName.replaceAll("[^a-zA-Z0-9_\\-.]", "_");
+
+          // Set player name for both capture handlers
+          if (packetStreamCapture != null) {
+            packetStreamCapture.setPlayerName(playerName);
+          }
+
+          if (packetCaptureAfterViaVersion != null) {
+            packetCaptureAfterViaVersion.setPlayerName(playerName);
+          }
+        }
+      }
+    }
+  }
+
+  /**
+   * Sets the packet stream capture handler for this connection.
+   *
+   * @param capture the packet capture handler
+   */
+  public void setPacketStreamCapture(abomination.PacketStreamCapture capture) {
+    ensureInEventLoop();
+    this.packetStreamCapture = capture;
   }
 
   /**

@@ -113,6 +113,7 @@ import org.checkerframework.checker.nullness.qual.EnsuresNonNull;
 import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
+import com.velocitypowered.proxy.network.capture.PacketCaptureManager;
 
 /**
  * Implementation of {@link ProxyServer}.
@@ -173,6 +174,11 @@ public class VelocityServer implements ProxyServer, ForwardingAudience {
   private final VelocityScheduler scheduler;
   private final VelocityChannelRegistrar channelRegistrar = new VelocityChannelRegistrar();
   private final ServerListPingHandler serverListPingHandler;
+  private @MonotonicNonNull PacketCaptureManager packetCaptureManager;
+
+  public PacketCaptureManager getPacketCaptureManager() {
+    return packetCaptureManager;
+  }
 
   VelocityServer(final ProxyOptions options) {
     pluginManager = new VelocityPluginManager(this);
@@ -305,6 +311,13 @@ public class VelocityServer implements ProxyServer, ForwardingAudience {
     ipAttemptLimiter = Ratelimiters.createWithMilliseconds(configuration.getLoginRatelimit());
     commandRateLimiter = Ratelimiters.createWithMilliseconds(configuration.getCommandRatelimit());
     tabCompleteRateLimiter = Ratelimiters.createWithMilliseconds(configuration.getTabCompleteRatelimit());
+    // Initialize packet capture if enabled
+    Path packetCapturePath = Path.of(configuration.getPacketCapture().getOutputDirectory());
+    this.packetCaptureManager = new PacketCaptureManager(
+        packetCapturePath,
+        configuration.getPacketCapture().isEnabled()
+    );
+
     loadPlugins();
 
     // Go ahead and fire the proxy initialization event. We block since plugins should have a chance
@@ -602,6 +615,11 @@ public class VelocityServer implements ProxyServer, ForwardingAudience {
       }
 
       try {
+        // Shutdown packet capture
+        if (packetCaptureManager != null) {
+          packetCaptureManager.shutdown();
+        }
+
         boolean timedOut = false;
 
         try {

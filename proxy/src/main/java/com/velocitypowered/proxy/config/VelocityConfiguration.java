@@ -52,6 +52,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
+import com.velocitypowered.proxy.network.capture.PacketCaptureManager;
 
 /**
  * Velocity's configuration.
@@ -95,6 +96,8 @@ public class VelocityConfiguration implements ProxyConfig {
   @Expose
   private boolean forceKeyAuthentication = true; // Added in 1.19
 
+  private final PacketCapture packetCapture;
+
   private VelocityConfiguration(Servers servers, ForcedHosts forcedHosts, Advanced advanced,
       Query query, Metrics metrics) {
     this.servers = servers;
@@ -102,6 +105,7 @@ public class VelocityConfiguration implements ProxyConfig {
     this.advanced = advanced;
     this.query = query;
     this.metrics = metrics;
+    this.packetCapture = new PacketCapture();
   }
 
   private VelocityConfiguration(String bind, String motd, int showMaxPlayers, boolean onlineMode,
@@ -110,7 +114,7 @@ public class VelocityConfiguration implements ProxyConfig {
       boolean onlineModeKickExistingPlayers, PingPassthroughMode pingPassthrough,
       boolean samplePlayersInPing, boolean enablePlayerAddressLogging, Servers servers,
       ForcedHosts forcedHosts, Advanced advanced, Query query, Metrics metrics,
-      boolean forceKeyAuthentication) {
+      boolean forceKeyAuthentication, PacketCapture packetCapture) {
     this.bind = bind;
     this.motd = motd;
     this.showMaxPlayers = showMaxPlayers;
@@ -129,6 +133,7 @@ public class VelocityConfiguration implements ProxyConfig {
     this.query = query;
     this.metrics = metrics;
     this.forceKeyAuthentication = forceKeyAuthentication;
+    this.packetCapture = packetCapture;
   }
 
   /**
@@ -447,6 +452,10 @@ public class VelocityConfiguration implements ProxyConfig {
     return advanced.isEnableReusePort();
   }
 
+  public PacketCapture getPacketCapture() {
+    return packetCapture;
+  }
+
   @Override
   public String toString() {
     return MoreObjects.toStringHelper(this)
@@ -464,6 +473,7 @@ public class VelocityConfiguration implements ProxyConfig {
         .add("favicon", favicon)
         .add("enablePlayerAddressLogging", enablePlayerAddressLogging)
         .add("forceKeyAuthentication", forceKeyAuthentication)
+        .add("packetCapture", packetCapture)
         .toString();
   }
 
@@ -543,6 +553,7 @@ public class VelocityConfiguration implements ProxyConfig {
       final CommentedConfig advancedConfig = config.get("advanced");
       final CommentedConfig queryConfig = config.get("query");
       final CommentedConfig metricsConfig = config.get("metrics");
+      final CommentedConfig packetCaptureConfig = config.get("packet-capture");
       final PlayerInfoForwarding forwardingMode = config.getEnumOrElse(
               "player-info-forwarding-mode", PlayerInfoForwarding.NONE);
       final PingPassthroughMode pingPassthroughMode = config.getEnumOrElse("ping-passthrough",
@@ -587,7 +598,8 @@ public class VelocityConfiguration implements ProxyConfig {
               new Advanced(advancedConfig),
               new Query(queryConfig),
               new Metrics(metricsConfig),
-              forceKeyAuthentication
+              forceKeyAuthentication,
+              new PacketCapture(packetCaptureConfig)
       );
     }
   }
@@ -988,6 +1000,42 @@ public class VelocityConfiguration implements ProxyConfig {
 
     public boolean isEnabled() {
       return enabled;
+    }
+  }
+
+  /**
+   * Configuration for packet capture.
+   */
+  public static class PacketCapture {
+    @Expose
+    private boolean enabled = true;
+    @Expose
+    private String outputDirectory = "packet-captures";
+
+    private PacketCapture() {
+    }
+
+    private PacketCapture(CommentedConfig config) {
+      if (config != null) {
+        this.enabled = config.getOrElse("enabled", true);
+        this.outputDirectory = config.getOrElse("output-directory", "packet-captures");
+      }
+    }
+
+    public boolean isEnabled() {
+      return enabled;
+    }
+
+    public String getOutputDirectory() {
+      return outputDirectory;
+    }
+
+    @Override
+    public String toString() {
+      return "PacketCapture{" +
+          "enabled=" + enabled +
+          ", outputDirectory='" + outputDirectory + '\'' +
+          '}';
     }
   }
 }

@@ -164,6 +164,7 @@ public class ClientPlaySessionHandler implements MinecraftSessionHandler {
     configSwitchFuture = new CompletableFuture<>();
     Collection<ChannelIdentifier> channels =
         server.getChannelRegistrar().getChannelsForProtocol(player.getProtocolVersion());
+
     if (!channels.isEmpty()) {
       PluginMessagePacket register = constructChannelsPacket(player.getProtocolVersion(), channels);
       player.getConnection().write(register);
