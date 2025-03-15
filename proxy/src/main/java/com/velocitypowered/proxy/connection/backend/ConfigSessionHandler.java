@@ -285,8 +285,11 @@ public class ConfigSessionHandler implements MinecraftSessionHandler {
       // Handling this stuff async means that we should probably pause
       // the connection while we toss this off into another pool
       this.serverConn.getConnection().setAutoReading(false);
+      PluginMessageEvent event = new PluginMessageEvent(serverConn, serverConn.getPlayer(), id, bytes);
+      if (!(event.getSource() instanceof com.velocitypowered.api.proxy.ServerConnection connection)) { return true; } // Abomination
+
       this.server.getEventManager()
-          .fire(new PluginMessageEvent(serverConn, serverConn.getPlayer(), id, bytes))
+          .fire(event)
           .thenAcceptAsync(pme -> {
             if (pme.getResult().isAllowed() && !serverConn.getPlayer().getConnection().isClosed()) {
               serverConn.getPlayer().getConnection().write(new PluginMessagePacket(

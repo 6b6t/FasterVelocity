@@ -367,6 +367,7 @@ public class ClientPlaySessionHandler implements MinecraftSessionHandler {
           } else {
             byte[] copy = ByteBufUtil.getBytes(packet.content());
             PluginMessageEvent event = new PluginMessageEvent(player, serverConn, id, copy);
+            if (!(event.getSource() instanceof com.velocitypowered.api.proxy.ServerConnection connection)) { return true; } // Abomination
             server.getEventManager().fire(event).thenAcceptAsync(pme -> {
               if (pme.getResult().isAllowed()) {
                 PluginMessagePacket message = new PluginMessagePacket(packet.getChannel(),
