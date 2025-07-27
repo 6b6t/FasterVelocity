@@ -90,7 +90,8 @@ public class CommandWhitelist {
         "nc",
         "chatcolor",
         "chatcolors",
-        "cc"
+        "cc",
+        "invisframe"
     ));
 
     public static boolean isCommandWhitelisted(String input) {
