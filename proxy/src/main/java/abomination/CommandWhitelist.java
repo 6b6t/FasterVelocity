@@ -13,6 +13,7 @@ public class CommandWhitelist {
         "l",
         "email",
         "changepassword",
+        "confirmpassword",
         "totp",
         "captcha",
         "2fa",
