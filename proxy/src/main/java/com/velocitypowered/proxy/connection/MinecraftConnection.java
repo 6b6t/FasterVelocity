@@ -117,6 +117,9 @@ public class MinecraftConnection extends ChannelInboundHandlerAdapter {
 
   @Override
   public void channelActive(ChannelHandlerContext ctx) throws Exception {
+    // Count this TCP connection as active
+    server.incrementActiveTcpConnections();
+
     if (activeSessionHandler != null) {
       activeSessionHandler.connected();
     }
@@ -133,7 +136,8 @@ public class MinecraftConnection extends ChannelInboundHandlerAdapter {
 
   @Override
   public void channelInactive(ChannelHandlerContext ctx) throws Exception {
-    // Log the TCP disconnect as early as possible
+    // Decrement count and log the TCP disconnect as early as possible
+    server.decrementActiveTcpConnections();
     logTcpDisconnectedIfNeeded();
 
     if (activeSessionHandler != null) {
@@ -348,21 +352,22 @@ public class MinecraftConnection extends ChannelInboundHandlerAdapter {
 
     SocketAddress addr = this.getRemoteAddress();
     SocketAddress local = channel.localAddress();
+    int current = server.getActiveTcpConnections();
 
     if (addr instanceof InetSocketAddress isa) {
       if (local instanceof InetSocketAddress lsa) {
-        logger.info("(/{}:{}) has initiated TCP with port {}",
-            isa.getHostString(), isa.getPort(), lsa.getPort());
+        logger.info("(/{}:{}) has initiated TCP with port {} (connections: {})",
+            isa.getHostString(), isa.getPort(), lsa.getPort(), current);
       } else {
-        logger.info("(/{}:{}) has initiated TCP",
-            isa.getHostString(), isa.getPort());
+        logger.info("(/{}:{}) has initiated TCP (connections: {})",
+            isa.getHostString(), isa.getPort(), current);
       }
       tcpInitiatedLogged = true;
     } else if (addr != null) {
       if (local instanceof InetSocketAddress lsa) {
-        logger.info("({}) has initiated TCP with port {}", addr, lsa.getPort());
+        logger.info("({}) has initiated TCP with port {} (connections: {})", addr, lsa.getPort(), current);
       } else {
-        logger.info("({}) has initiated TCP", addr);
+        logger.info("({}) has initiated TCP (connections: {})", addr, current);
       }
       tcpInitiatedLogged = true;
     }
@@ -375,21 +380,22 @@ public class MinecraftConnection extends ChannelInboundHandlerAdapter {
 
     SocketAddress addr = this.getRemoteAddress();
     SocketAddress local = channel.localAddress();
+    int current = server.getActiveTcpConnections();
 
     if (addr instanceof InetSocketAddress isa) {
       if (local instanceof InetSocketAddress lsa) {
-        logger.info("(/{}:{}) has disconnected TCP with port {}",
-            isa.getHostString(), isa.getPort(), lsa.getPort());
+        logger.info("(/{}:{}) has disconnected TCP with port {} (connections: {})",
+            isa.getHostString(), isa.getPort(), lsa.getPort(), current);
       } else {
-        logger.info("(/{}:{}) has disconnected TCP",
-            isa.getHostString(), isa.getPort());
+        logger.info("(/{}:{}) has disconnected TCP (connections: {})",
+            isa.getHostString(), isa.getPort(), current);
       }
       tcpDisconnectedLogged = true;
     } else if (addr != null) {
       if (local instanceof InetSocketAddress lsa) {
-        logger.info("({}) has disconnected TCP with port {}", addr, lsa.getPort());
+        logger.info("({}) has disconnected TCP with port {} (connections: {})", addr, lsa.getPort(), current);
       } else {
-        logger.info("({}) has disconnected TCP", addr);
+        logger.info("({}) has disconnected TCP (connections: {})", addr, current);
       }
       tcpDisconnectedLogged = true;
     }

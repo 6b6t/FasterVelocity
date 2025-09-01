@@ -97,6 +97,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.IntFunction;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -175,6 +176,7 @@ public class VelocityServer implements ProxyServer, ForwardingAudience {
   private final VelocityChannelRegistrar channelRegistrar = new VelocityChannelRegistrar();
   private final ServerListPingHandler serverListPingHandler;
   private @MonotonicNonNull PacketCaptureManager packetCaptureManager;
+  private final AtomicInteger activeTcpConnections = new AtomicInteger(0);
 
   public PacketCaptureManager getPacketCaptureManager() {
     return packetCaptureManager;
@@ -857,6 +859,18 @@ public class VelocityServer implements ProxyServer, ForwardingAudience {
   @Override
   public boolean isShuttingDown() {
     return shutdownInProgress.get();
+  }
+
+  public int incrementActiveTcpConnections() {
+    return activeTcpConnections.incrementAndGet();
+  }
+
+  public int decrementActiveTcpConnections() {
+    return activeTcpConnections.decrementAndGet();
+  }
+
+  public int getActiveTcpConnections() {
+    return activeTcpConnections.get();
   }
 
   @Override
