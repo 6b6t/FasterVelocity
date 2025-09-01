@@ -88,6 +88,7 @@ public class MinecraftConnection extends ChannelInboundHandlerAdapter {
   public boolean pendingConfigurationSwitch = false;
   private SocketAddress remoteAddress;
   private boolean tcpInitiatedLogged = false;
+  private boolean tcpDisconnectedLogged = false;
   private StateRegistry state;
   private Map<StateRegistry, MinecraftSessionHandler> sessionHandlers;
   private @Nullable MinecraftSessionHandler activeSessionHandler;
@@ -132,6 +133,9 @@ public class MinecraftConnection extends ChannelInboundHandlerAdapter {
 
   @Override
   public void channelInactive(ChannelHandlerContext ctx) throws Exception {
+    // Log the TCP disconnect as early as possible
+    logTcpDisconnectedIfNeeded();
+
     if (activeSessionHandler != null) {
       activeSessionHandler.disconnected();
     }
@@ -361,6 +365,33 @@ public class MinecraftConnection extends ChannelInboundHandlerAdapter {
         logger.info("({}) has initiated TCP", addr);
       }
       tcpInitiatedLogged = true;
+    }
+  }
+
+  private void logTcpDisconnectedIfNeeded() {
+    if (tcpDisconnectedLogged || !server.getConfiguration().isLogPlayerConnections()) {
+      return;
+    }
+
+    SocketAddress addr = this.getRemoteAddress();
+    SocketAddress local = channel.localAddress();
+
+    if (addr instanceof InetSocketAddress isa) {
+      if (local instanceof InetSocketAddress lsa) {
+        logger.info("(/{}:{}) has disconnected TCP with port {}",
+            isa.getHostString(), isa.getPort(), lsa.getPort());
+      } else {
+        logger.info("(/{}:{}) has disconnected TCP",
+            isa.getHostString(), isa.getPort());
+      }
+      tcpDisconnectedLogged = true;
+    } else if (addr != null) {
+      if (local instanceof InetSocketAddress lsa) {
+        logger.info("({}) has disconnected TCP with port {}", addr, lsa.getPort());
+      } else {
+        logger.info("({}) has disconnected TCP", addr);
+      }
+      tcpDisconnectedLogged = true;
     }
   }
 
