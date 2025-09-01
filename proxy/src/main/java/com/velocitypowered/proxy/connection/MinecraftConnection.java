@@ -343,11 +343,23 @@ public class MinecraftConnection extends ChannelInboundHandlerAdapter {
     }
 
     SocketAddress addr = this.getRemoteAddress();
+    SocketAddress local = channel.localAddress();
+
     if (addr instanceof InetSocketAddress isa) {
-      logger.info("(/{}:{}) has initiated TCP", isa.getHostString(), isa.getPort());
+      if (local instanceof InetSocketAddress lsa) {
+        logger.info("(/{}:{}) has initiated TCP with port {}",
+            isa.getHostString(), isa.getPort(), lsa.getPort());
+      } else {
+        logger.info("(/{}:{}) has initiated TCP",
+            isa.getHostString(), isa.getPort());
+      }
       tcpInitiatedLogged = true;
     } else if (addr != null) {
-      logger.info("({}) has initiated TCP", addr);
+      if (local instanceof InetSocketAddress lsa) {
+        logger.info("({}) has initiated TCP with port {}", addr, lsa.getPort());
+      } else {
+        logger.info("({}) has initiated TCP", addr);
+      }
       tcpInitiatedLogged = true;
     }
   }
