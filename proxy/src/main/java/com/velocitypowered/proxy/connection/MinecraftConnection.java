@@ -87,6 +87,7 @@ public class MinecraftConnection extends ChannelInboundHandlerAdapter {
   private final Channel channel;
   public boolean pendingConfigurationSwitch = false;
   private SocketAddress remoteAddress;
+  private boolean tcpInitiatedLogged = false;
   private StateRegistry state;
   private Map<StateRegistry, MinecraftSessionHandler> sessionHandlers;
   private @Nullable MinecraftSessionHandler activeSessionHandler;
@@ -121,6 +122,11 @@ public class MinecraftConnection extends ChannelInboundHandlerAdapter {
 
     if (association != null && server.getConfiguration().isLogPlayerConnections()) {
       logger.info("{} has connected", association);
+    }
+
+    // If HAProxy PROXY protocol is not enabled, we can log the TCP initiation immediately
+    if (!server.getConfiguration().isProxyProtocol()) {
+      logTcpInitiatedIfNeeded();
     }
   }
 
@@ -160,6 +166,8 @@ public class MinecraftConnection extends ChannelInboundHandlerAdapter {
       } else if (msg instanceof HAProxyMessage proxyMessage) {
         this.remoteAddress = new InetSocketAddress(proxyMessage.sourceAddress(),
             proxyMessage.sourcePort());
+        // Now that we have the real client address from HAProxy, log the TCP initiation
+        logTcpInitiatedIfNeeded();
       } else if (msg instanceof ByteBuf buf) {
         activeSessionHandler.handleUnknown(buf);
       }
@@ -327,6 +335,21 @@ public class MinecraftConnection extends ChannelInboundHandlerAdapter {
 
   public SocketAddress getRemoteAddress() {
     return remoteAddress;
+  }
+
+  private void logTcpInitiatedIfNeeded() {
+    if (tcpInitiatedLogged || !server.getConfiguration().isLogPlayerConnections()) {
+      return;
+    }
+
+    SocketAddress addr = this.getRemoteAddress();
+    if (addr instanceof InetSocketAddress isa) {
+      logger.info("(/{}:{}) has initiated TCP", isa.getHostString(), isa.getPort());
+      tcpInitiatedLogged = true;
+    } else if (addr != null) {
+      logger.info("({}) has initiated TCP", addr);
+      tcpInitiatedLogged = true;
+    }
   }
 
   public StateRegistry getState() {
