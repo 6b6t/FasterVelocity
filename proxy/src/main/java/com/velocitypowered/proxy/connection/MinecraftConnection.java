@@ -89,6 +89,7 @@ public class MinecraftConnection extends ChannelInboundHandlerAdapter {
   private SocketAddress remoteAddress;
   private boolean tcpInitiatedLogged = false;
   private boolean tcpDisconnectedLogged = false;
+  private final boolean isFrontend; // true for client->proxy connections only
   private StateRegistry state;
   private Map<StateRegistry, MinecraftSessionHandler> sessionHandlers;
   private @Nullable MinecraftSessionHandler activeSessionHandler;
@@ -107,11 +108,15 @@ public class MinecraftConnection extends ChannelInboundHandlerAdapter {
    * @param server  the Velocity instance
    */
   public MinecraftConnection(Channel channel, VelocityServer server) {
+    this(channel, server, true);
+  }
+
+  public MinecraftConnection(Channel channel, VelocityServer server, boolean isFrontend) {
     this.channel = channel;
     this.remoteAddress = channel.remoteAddress();
     this.server = server;
     this.state = StateRegistry.HANDSHAKE;
-
+    this.isFrontend = isFrontend;
     this.sessionHandlers = new HashMap<>();
   }
 
@@ -129,7 +134,7 @@ public class MinecraftConnection extends ChannelInboundHandlerAdapter {
     }
 
     // If HAProxy PROXY protocol is not enabled, we can log the TCP initiation immediately
-    if (!server.getConfiguration().isProxyProtocol()) {
+    if (isFrontend && !server.getConfiguration().isProxyProtocol()) {
       logTcpInitiatedIfNeeded();
     }
   }
@@ -346,7 +351,7 @@ public class MinecraftConnection extends ChannelInboundHandlerAdapter {
   }
 
   private void logTcpInitiatedIfNeeded() {
-    if (tcpInitiatedLogged || !server.getConfiguration().isLogPlayerConnections()) {
+    if (!isFrontend || tcpInitiatedLogged || !server.getConfiguration().isLogPlayerConnections()) {
       return;
     }
 
@@ -374,7 +379,7 @@ public class MinecraftConnection extends ChannelInboundHandlerAdapter {
   }
 
   private void logTcpDisconnectedIfNeeded() {
-    if (tcpDisconnectedLogged || !server.getConfiguration().isLogPlayerConnections()) {
+    if (!isFrontend || tcpDisconnectedLogged || !server.getConfiguration().isLogPlayerConnections()) {
       return;
     }
 
