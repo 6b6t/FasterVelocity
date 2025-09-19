@@ -17,6 +17,7 @@
 
 package com.velocitypowered.proxy;
 
+import abomination.CommandWhitelist;
 import com.google.common.base.MoreObjects;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
@@ -427,8 +428,10 @@ public class VelocityServer implements ProxyServer, ForwardingAudience {
       }
 
       commandManager.setAnnounceProxyCommands(configuration.isAnnounceProxyCommands());
+
+      CommandWhitelist.initialize(Path.of("command_whitelist.yml"));
     } catch (Exception e) {
-      logger.error("Unable to read/load/save your velocity.toml. The server will shut down.", e);
+      logger.error("Unable to load startup configuration. The server will shut down.", e);
       LogManager.shutdown();
       System.exit(1);
     }

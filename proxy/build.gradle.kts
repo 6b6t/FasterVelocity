@@ -163,6 +163,7 @@ dependencies {
     implementation(libs.adventure.facet)
     implementation(libs.completablefutures)
     implementation(libs.nightconfig)
+    implementation(libs.snakeyaml)
     implementation(libs.bstats)
     implementation(libs.lmbda)
     implementation(libs.asm)
