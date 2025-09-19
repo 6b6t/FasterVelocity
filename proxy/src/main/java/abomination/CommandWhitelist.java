@@ -9,6 +9,7 @@ import java.nio.file.Path;
 import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import org.apache.logging.log4j.LogManager;
@@ -107,7 +108,13 @@ public final class CommandWhitelist {
       "playerstats"
   );
 
-  private static volatile Set<String> commands = Set.copyOf(DEFAULT_COMMANDS);
+  private static volatile Set<String> commands = Collections.unmodifiableSet(
+      new LinkedHashSet<>(DEFAULT_COMMANDS));
+  private static volatile boolean packetCapturesEnabled;
+
+  private static final String COMMANDS_KEY = "commands";
+  private static final String PACKET_CAPTURES_KEY = "packet-captures";
+  private static final String PACKET_CAPTURES_ENABLED_KEY = "enabled";
   private static volatile Path whitelistPath;
 
   private CommandWhitelist() {
@@ -124,7 +131,7 @@ public final class CommandWhitelist {
   public static synchronized void reload() throws CommandWhitelistLoadException {
     Path path = whitelistPath;
     if (path == null) {
-      throw new CommandWhitelistLoadException("Command whitelist has not been initialized yet.");
+      throw new CommandWhitelistLoadException("Abomination configuration has not been initialized yet.");
     }
     reloadInternal(path);
   }
@@ -142,11 +149,15 @@ public final class CommandWhitelist {
     return commands.contains(commandName);
   }
 
+  public static boolean isPacketCapturesEnabled() {
+    return packetCapturesEnabled;
+  }
+
   private static void ensureDefaultFile(Path path) throws CommandWhitelistLoadException {
     if (Files.exists(path)) {
       if (!Files.isRegularFile(path)) {
         throw new CommandWhitelistLoadException(
-            "Command whitelist path " + path + " exists but is not a file.");
+            "Abomination configuration path " + path + " exists but is not a file.");
       }
       return;
     }
@@ -156,15 +167,19 @@ public final class CommandWhitelist {
       if (parent != null && Files.notExists(parent)) {
         Files.createDirectories(parent);
       }
-      Yaml yaml = new Yaml();
-      String content = yaml.dump(DEFAULT_COMMANDS);
       try (Writer writer = Files.newBufferedWriter(path, StandardCharsets.UTF_8)) {
+        writer.write("# Abomination Velocity configuration\n\n");
+        writer.write("packet-captures:\n");
+        writer.write("  enabled: false\n\n");
         writer.write("# Commands players are allowed to execute\n");
-        writer.write(content);
+        writer.write("commands:\n");
+        for (String command : DEFAULT_COMMANDS) {
+          writer.write("  - " + command + "\n");
+        }
       }
-      LOGGER.info("Created default command whitelist at {}", path);
+      LOGGER.info("Created default abomination configuration at {}", path);
     } catch (IOException e) {
-      throw new CommandWhitelistLoadException("Unable to create default command whitelist at "
+      throw new CommandWhitelistLoadException("Unable to create default abomination configuration at "
           + path, e);
     }
   }
@@ -172,43 +187,99 @@ public final class CommandWhitelist {
   private static void reloadInternal(Path path) throws CommandWhitelistLoadException {
     if (!Files.isRegularFile(path)) {
       throw new CommandWhitelistLoadException(
-          "Command whitelist path " + path + " does not point to a file.");
+          "Abomination configuration path " + path + " does not point to a file.");
     }
 
     try (Reader reader = Files.newBufferedReader(path, StandardCharsets.UTF_8)) {
       Yaml yaml = new Yaml();
       Object data = yaml.load(reader);
-      if (!(data instanceof Iterable<?> iterable)) {
-        throw new CommandWhitelistLoadException(
-            "Command whitelist must be a YAML list of command names.");
-      }
 
-      LinkedHashSet<String> parsedCommands = new LinkedHashSet<>();
-      for (Object element : iterable) {
-        if (!(element instanceof String value)) {
-          throw new CommandWhitelistLoadException(
-              "Command whitelist entries must be strings: " + element);
-        }
-        String command = value.trim();
-        if (command.isEmpty()) {
-          throw new CommandWhitelistLoadException("Command whitelist contains an empty command.");
-        }
-        if (command.contains(" ")) {
-          throw new CommandWhitelistLoadException(
-              "Command whitelist entry contains spaces: '" + command + "'.");
-        }
-        parsedCommands.add(command);
+      LinkedHashSet<String> parsedCommands;
+      boolean parsedPacketCapturesEnabled = false;
+
+      if (data == null) {
+        parsedCommands = new LinkedHashSet<>(DEFAULT_COMMANDS);
+      } else if (data instanceof Iterable<?> iterable) {
+        parsedCommands = parseCommands(iterable);
+        LOGGER.warn("Abomination configuration at {} is using the deprecated list format.", path);
+      } else if (data instanceof Map<?, ?> map) {
+        parsedCommands = parseCommandsSection(map.get(COMMANDS_KEY));
+        parsedPacketCapturesEnabled = parsePacketCapturesSection(map.get(PACKET_CAPTURES_KEY));
+      } else {
+        throw new CommandWhitelistLoadException(
+            "Abomination configuration must be a YAML mapping or list.");
       }
 
       if (parsedCommands.isEmpty()) {
         throw new CommandWhitelistLoadException("Command whitelist is empty after parsing.");
       }
 
-      commands = Collections.unmodifiableSet(Set.copyOf(parsedCommands));
-      LOGGER.info("Loaded {} whitelisted commands from {}", commands.size(), path);
+      commands = Collections.unmodifiableSet(parsedCommands);
+      packetCapturesEnabled = parsedPacketCapturesEnabled;
+      LOGGER.info(
+          "Loaded {} whitelisted commands from {}; packet captures {}.",
+          commands.size(),
+          path,
+          packetCapturesEnabled ? "enabled" : "disabled");
     } catch (IOException e) {
-      throw new CommandWhitelistLoadException("Unable to read command whitelist at " + path, e);
+      throw new CommandWhitelistLoadException("Unable to read abomination configuration at " + path, e);
     }
+  }
+
+  private static LinkedHashSet<String> parseCommandsSection(Object commandsSection)
+      throws CommandWhitelistLoadException {
+    if (commandsSection == null) {
+      return new LinkedHashSet<>(DEFAULT_COMMANDS);
+    }
+    if (!(commandsSection instanceof Iterable<?> iterable)) {
+      throw new CommandWhitelistLoadException(
+          "Abomination configuration field 'commands' must be a YAML list.");
+    }
+    return parseCommands(iterable);
+  }
+
+  private static LinkedHashSet<String> parseCommands(Iterable<?> iterable)
+      throws CommandWhitelistLoadException {
+    LinkedHashSet<String> parsedCommands = new LinkedHashSet<>();
+    for (Object element : iterable) {
+      if (!(element instanceof String value)) {
+        throw new CommandWhitelistLoadException(
+            "Command whitelist entries must be strings: " + element);
+      }
+      String command = value.trim();
+      if (command.isEmpty()) {
+        throw new CommandWhitelistLoadException("Command whitelist contains an empty command.");
+      }
+      if (command.contains(" ")) {
+        throw new CommandWhitelistLoadException(
+            "Command whitelist entry contains spaces: '" + command + "'.");
+      }
+      parsedCommands.add(command);
+    }
+    return parsedCommands;
+  }
+
+  private static boolean parsePacketCapturesSection(Object packetCapturesSection)
+      throws CommandWhitelistLoadException {
+    if (packetCapturesSection == null) {
+      return false;
+    }
+    if (packetCapturesSection instanceof Boolean enabled) {
+      return enabled;
+    }
+    if (packetCapturesSection instanceof Map<?, ?> sectionMap) {
+      Object enabledValue = sectionMap.get(PACKET_CAPTURES_ENABLED_KEY);
+      if (enabledValue == null) {
+        return false;
+      }
+      if (enabledValue instanceof Boolean enabled) {
+        return enabled;
+      }
+      throw new CommandWhitelistLoadException(
+          "Abomination configuration field 'packet-captures.enabled' must be a boolean.");
+    }
+    throw new CommandWhitelistLoadException(
+        "Abomination configuration field 'packet-captures' must be a boolean or mapping.");
   }
 
   public static class CommandWhitelistLoadException extends Exception {
@@ -221,4 +292,3 @@ public final class CommandWhitelist {
     }
   }
 }
-

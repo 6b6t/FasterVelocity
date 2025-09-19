@@ -317,10 +317,15 @@ public class VelocityServer implements ProxyServer, ForwardingAudience {
     commandRateLimiter = Ratelimiters.createWithMilliseconds(configuration.getCommandRatelimit());
     tabCompleteRateLimiter = Ratelimiters.createWithMilliseconds(configuration.getTabCompleteRatelimit());
     // Initialize packet capture if enabled
+    boolean packetCaptureEnabled = configuration.getPacketCapture().isEnabled()
+        && CommandWhitelist.isPacketCapturesEnabled();
+    if (configuration.getPacketCapture().isEnabled() && !packetCaptureEnabled) {
+      logger.info("Packet capture disabled via abomination_velocity.yml");
+    }
     Path packetCapturePath = Path.of(configuration.getPacketCapture().getOutputDirectory());
     this.packetCaptureManager = new PacketCaptureManager(
         packetCapturePath,
-        configuration.getPacketCapture().isEnabled()
+        packetCaptureEnabled
     );
 
     loadPlugins();
@@ -431,7 +436,7 @@ public class VelocityServer implements ProxyServer, ForwardingAudience {
 
       commandManager.setAnnounceProxyCommands(configuration.isAnnounceProxyCommands());
 
-      CommandWhitelist.initialize(Path.of("command_whitelist.yml"));
+      CommandWhitelist.initialize(Path.of("abomination_velocity.yml"));
     } catch (Exception e) {
       logger.error("Unable to load startup configuration. The server will shut down.", e);
       LogManager.shutdown();
