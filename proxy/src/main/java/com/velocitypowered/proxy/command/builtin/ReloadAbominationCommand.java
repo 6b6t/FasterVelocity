@@ -13,26 +13,27 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 /**
- * Reloads the command whitelist from disk. Only the console can execute this command.
+ * Reloads the Abomination configuration from disk. Only the console can execute this command.
  */
-public final class ReloadWhitelistCommand {
+public final class ReloadAbominationCommand {
 
-  private static final Logger LOGGER = LogManager.getLogger(ReloadWhitelistCommand.class);
+  private static final Logger LOGGER = LogManager.getLogger(ReloadAbominationCommand.class);
   private final ProxyServer server;
 
-  public ReloadWhitelistCommand(ProxyServer server) {
+  public ReloadAbominationCommand(ProxyServer server) {
     this.server = server;
   }
 
   public void register() {
     BrigadierCommand command = new BrigadierCommand(
-        BrigadierCommand.literalArgumentBuilder("reloadwhitelist")
+        BrigadierCommand.literalArgumentBuilder("reload")
             .requires(source -> source == server.getConsoleCommandSource())
             .executes(context -> execute(context.getSource()))
             .build());
 
     server.getCommandManager().register(
-        server.getCommandManager().metaBuilder(command)
+        server.getCommandManager().metaBuilder("abomination:reload")
+            .aliases("reload")
             .plugin(VelocityVirtualPlugin.INSTANCE)
             .build(),
         command
@@ -42,15 +43,14 @@ public final class ReloadWhitelistCommand {
   private int execute(CommandSource source) {
     try {
       CommandWhitelist.reload();
-      source.sendMessage(Component.text("Command whitelist reloaded.", NamedTextColor.GREEN));
+      source.sendMessage(Component.text("Abomination configuration reloaded.", NamedTextColor.GREEN));
       return Command.SINGLE_SUCCESS;
     } catch (CommandWhitelistLoadException e) {
-      LOGGER.error("Unable to reload command whitelist", e);
+      LOGGER.error("Unable to reload abomination configuration", e);
       String message = e.getMessage() == null ? e.toString() : e.getMessage();
       source.sendMessage(Component.text(
-          "Failed to reload command whitelist: " + message, NamedTextColor.RED));
+          "Failed to reload abomination configuration: " + message, NamedTextColor.RED));
       return 0;
     }
   }
 }
-
