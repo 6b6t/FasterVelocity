@@ -1,3 +1,12 @@
+# ABOMINATION VELOCITY FOR 6b6t
+
+After installing check `abomination_velocity.yml`.
+To reload a command whitelist do `abomination:reload` in the console (not as a player).
+
+
+
+
+
 # Velocity
 
 [![Build Status](https://img.shields.io/github/actions/workflow/status/PaperMC/Velocity/gradle.yml)](https://papermc.io/downloads/velocity)
