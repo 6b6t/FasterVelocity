@@ -164,8 +164,25 @@ public class LoginSessionHandler implements MinecraftSessionHandler {
         smc.write(player.getClientSettingsPacket());
       }
       if (player.getConnection().getActiveSessionHandler() instanceof ClientPlaySessionHandler clientPlaySessionHandler) {
-        smc.setAutoReading(false);
-        clientPlaySessionHandler.doSwitch().thenRunAsync(() -> smc.setAutoReading(true), smc.eventLoop());
+        if (clientPlaySessionHandler.isSpawned()) {
+          // Normal case: player was playing, switch to new server
+          smc.setAutoReading(false);
+          clientPlaySessionHandler.doSwitch().thenRunAsync(() -> smc.setAutoReading(true), smc.eventLoop());
+        } else {
+          // Player is in PLAY handler but hasn't spawned yet (no JoinGame received after last config switch).
+          // The client is waiting for JoinGame and mc.player is null.
+          // Sending StartUpdatePacket now would crash clients that access mc.player during deactivation.
+          // Solution: Replay cached JoinGame first to create mc.player, then proceed normally.
+          var cachedJoinGame = player.getCachedJoinGame();
+          if (cachedJoinGame != null) {
+            player.getConnection().write(cachedJoinGame);
+            smc.setAutoReading(false);
+            clientPlaySessionHandler.doSwitch().thenRunAsync(() -> smc.setAutoReading(true), smc.eventLoop());
+          } else {
+            // No cached JoinGame available - disconnect player to avoid crash
+            player.disconnect(net.kyori.adventure.text.Component.text("Connection interrupted during server switch. Please reconnect."));
+          }
+        }
       } else {
         // Initial login - the player is already in configuration state.
         server.getEventManager().fireAndForget(new PlayerEnteredConfigurationEvent(player, serverConn));

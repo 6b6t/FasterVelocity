@@ -79,6 +79,7 @@ import com.velocitypowered.proxy.protocol.packet.ClientboundStopSoundPacket;
 import com.velocitypowered.proxy.protocol.packet.ClientboundStoreCookiePacket;
 import com.velocitypowered.proxy.protocol.packet.DisconnectPacket;
 import com.velocitypowered.proxy.protocol.packet.HeaderAndFooterPacket;
+import com.velocitypowered.proxy.protocol.packet.JoinGamePacket;
 import com.velocitypowered.proxy.protocol.packet.KeepAlivePacket;
 import com.velocitypowered.proxy.protocol.packet.PluginMessagePacket;
 import com.velocitypowered.proxy.protocol.packet.RemoveResourcePackPacket;
@@ -201,6 +202,7 @@ public class ConnectedPlayer implements MinecraftConnectionAssociation, Player, 
   private @Nullable Locale effectiveLocale;
   private final @Nullable IdentifiedKey playerKey;
   private @Nullable ClientSettingsPacket clientSettingsPacket;
+  private @Nullable JoinGamePacket cachedJoinGame;
   private volatile ChatQueue chatQueue;
   private final ChatBuilderFactory chatBuilderFactory;
   private final BossBarManager bossBarManager;
@@ -1043,6 +1045,21 @@ public class ConnectedPlayer implements MinecraftConnectionAssociation, Player, 
     this.clientBrand = clientBrand;
   }
 
+  /**
+   * Gets the cached JoinGame packet from the last connection.
+   * Used to replay JoinGame before StartUpdatePacket when mc.player might be null.
+   */
+  public @Nullable JoinGamePacket getCachedJoinGame() {
+    return cachedJoinGame;
+  }
+
+  /**
+   * Caches the JoinGame packet for potential replay.
+   */
+  public void setCachedJoinGame(final @Nullable JoinGamePacket cachedJoinGame) {
+    this.cachedJoinGame = cachedJoinGame;
+  }
+
   @Override
   public void playSound(@NotNull Sound sound, @NotNull Sound.Emitter emitter) {
     Preconditions.checkNotNull(sound, "sound");
@@ -1371,10 +1388,7 @@ public class ConnectedPlayer implements MinecraftConnectionAssociation, Player, 
           }
 
           // Prevent sending duplicate StartUpdatePacket if one is already pending
-          // This can happen in nested proxy scenarios during rapid server switches
           if (connection.pendingConfigurationSwitch) {
-            logger.info("[DEBUG] Skipping duplicate StartUpdatePacket for {} - config switch already pending",
-                getUsername());
             return;
           }
 
@@ -1382,7 +1396,6 @@ public class ConnectedPlayer implements MinecraftConnectionAssociation, Player, 
             bundleHandler.toggleBundleSession();
             connection.write(BundleDelimiterPacket.INSTANCE);
           }
-          logger.info("[DEBUG] Sending StartUpdatePacket to player {}", getUsername());
           connection.write(StartUpdatePacket.INSTANCE);
           connection.pendingConfigurationSwitch = true;
           connection.getChannel().pipeline().get(MinecraftEncoder.class).setState(StateRegistry.CONFIG);

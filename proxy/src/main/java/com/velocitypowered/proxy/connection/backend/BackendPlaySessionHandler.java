@@ -157,16 +157,10 @@ public class BackendPlaySessionHandler implements MinecraftSessionHandler {
     // In nested proxy scenarios (OuterVelocity -> MultiVelocity -> Slave),
     // we might receive StartUpdatePacket before the player has received JoinGame.
     if (playerSessionHandler.isSpawned()) {
-      logger.info("[DEBUG] StartUpdatePacket received, player {} already spawned, switching immediately",
-          serverConn.getPlayer().getUsername());
       serverConn.getPlayer().switchToConfigState();
     } else {
-      logger.info("[DEBUG] StartUpdatePacket received, player {} NOT spawned, waiting for spawn",
-          serverConn.getPlayer().getUsername());
-      // Wait for spawn before switching
+      // Wait for spawn before switching to avoid sending StartUpdatePacket before JoinGame
       playerSessionHandler.getSpawnFuture().thenRunAsync(() -> {
-        logger.info("[DEBUG] Player {} spawn complete, now switching to config state",
-            serverConn.getPlayer().getUsername());
         serverConn.getPlayer().switchToConfigState();
       }, playerConnection.eventLoop());
     }

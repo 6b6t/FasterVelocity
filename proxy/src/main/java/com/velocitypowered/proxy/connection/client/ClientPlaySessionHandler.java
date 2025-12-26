@@ -570,6 +570,10 @@ public class ClientPlaySessionHandler implements MinecraftSessionHandler {
   public void handleBackendJoinGame(JoinGamePacket joinGame, VelocityServerConnection destination) {
     final MinecraftConnection serverMc = destination.ensureConnected();
 
+    // Cache the JoinGame packet on the player for potential replay if we need to switch servers
+    // before the client has spawned (to ensure mc.player is non-null)
+    player.setCachedJoinGame(joinGame);
+
     if (!spawned) {
       // The player wasn't spawned in yet, so we don't need to do anything special. Just send
       // JoinGame.
@@ -580,7 +584,6 @@ public class ClientPlaySessionHandler implements MinecraftSessionHandler {
       // Signal spawn AFTER JoinGame is written, so any waiting code sends StartUpdatePacket
       // after the client has received JoinGame and created mc.player
       spawnFuture.complete(null);
-      logger.info("[DEBUG] Player {} spawned, spawnFuture completed", player.getUsername());
     } else {
       // Clear tab list to avoid duplicate entries
       player.getTabList().clearAll();
