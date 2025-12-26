@@ -574,10 +574,13 @@ public class ClientPlaySessionHandler implements MinecraftSessionHandler {
       // The player wasn't spawned in yet, so we don't need to do anything special. Just send
       // JoinGame.
       spawned = true;
-      spawnFuture.complete(null);  // Signal that player is now spawned
       player.getConnection().delayedWrite(joinGame);
       // Required for Legacy Forge
       player.getPhase().onFirstJoin(player);
+      // Signal spawn AFTER JoinGame is written, so any waiting code sends StartUpdatePacket
+      // after the client has received JoinGame and created mc.player
+      spawnFuture.complete(null);
+      logger.info("[DEBUG] Player {} spawned, spawnFuture completed", player.getUsername());
     } else {
       // Clear tab list to avoid duplicate entries
       player.getTabList().clearAll();
