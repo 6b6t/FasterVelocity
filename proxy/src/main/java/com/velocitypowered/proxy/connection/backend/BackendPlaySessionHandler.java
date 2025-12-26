@@ -152,7 +152,18 @@ public class BackendPlaySessionHandler implements MinecraftSessionHandler {
     // Even when not auto reading messages are still decoded. Decode them with the correct state
     smc.getChannel().pipeline().get(MinecraftVarintFrameDecoder.class).setState(StateRegistry.CONFIG);
     smc.getChannel().pipeline().get(MinecraftDecoder.class).setState(StateRegistry.CONFIG);
-    serverConn.getPlayer().switchToConfigState();
+
+    // Check if player has been spawned before switching to config state.
+    // In nested proxy scenarios (OuterVelocity -> MultiVelocity -> Slave),
+    // we might receive StartUpdatePacket before the player has received JoinGame.
+    if (playerSessionHandler.isSpawned()) {
+      serverConn.getPlayer().switchToConfigState();
+    } else {
+      // Wait for spawn before switching
+      playerSessionHandler.getSpawnFuture().thenRunAsync(() -> {
+        serverConn.getPlayer().switchToConfigState();
+      }, playerConnection.eventLoop());
+    }
     return true;
   }
 

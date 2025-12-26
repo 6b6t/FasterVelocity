@@ -103,6 +103,7 @@ public class ClientPlaySessionHandler implements MinecraftSessionHandler {
 
   private final ConnectedPlayer player;
   private boolean spawned = false;
+  private CompletableFuture<Void> spawnFuture = new CompletableFuture<>();
   private final List<UUID> serverBossBars = new ArrayList<>();
   private final Queue<PluginMessagePacket> loginPluginMessages = new ConcurrentLinkedQueue<>();
   private final VelocityServer server;
@@ -572,6 +573,7 @@ public class ClientPlaySessionHandler implements MinecraftSessionHandler {
       // The player wasn't spawned in yet, so we don't need to do anything special. Just send
       // JoinGame.
       spawned = true;
+      spawnFuture.complete(null);  // Signal that player is now spawned
       player.getConnection().delayedWrite(joinGame);
       // Required for Legacy Forge
       player.getPhase().onFirstJoin(player);
@@ -675,6 +677,20 @@ public class ClientPlaySessionHandler implements MinecraftSessionHandler {
 
   public List<UUID> getServerBossBars() {
     return serverBossBars;
+  }
+
+  /**
+   * Returns whether the player has been spawned (received JoinGame).
+   */
+  public boolean isSpawned() {
+    return spawned;
+  }
+
+  /**
+   * Returns a future that completes when the player is spawned.
+   */
+  public CompletableFuture<Void> getSpawnFuture() {
+    return spawnFuture;
   }
 
   private boolean handleCommandTabComplete(TabCompleteRequestPacket packet) {
