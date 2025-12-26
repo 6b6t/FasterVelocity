@@ -1370,10 +1370,19 @@ public class ConnectedPlayer implements MinecraftConnectionAssociation, Player, 
             return;
           }
 
+          // Prevent sending duplicate StartUpdatePacket if one is already pending
+          // This can happen in nested proxy scenarios during rapid server switches
+          if (connection.pendingConfigurationSwitch) {
+            logger.info("[DEBUG] Skipping duplicate StartUpdatePacket for {} - config switch already pending",
+                getUsername());
+            return;
+          }
+
           if (bundleHandler.isInBundleSession()) {
             bundleHandler.toggleBundleSession();
             connection.write(BundleDelimiterPacket.INSTANCE);
           }
+          logger.info("[DEBUG] Sending StartUpdatePacket to player {}", getUsername());
           connection.write(StartUpdatePacket.INSTANCE);
           connection.pendingConfigurationSwitch = true;
           connection.getChannel().pipeline().get(MinecraftEncoder.class).setState(StateRegistry.CONFIG);

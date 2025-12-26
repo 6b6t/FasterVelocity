@@ -113,6 +113,8 @@ public class ClientConfigSessionHandler implements MinecraftSessionHandler {
 
   @Override
   public boolean handle(FinishedUpdatePacket packet) {
+    // Reset the pending flag as config switch is now complete
+    player.getConnection().pendingConfigurationSwitch = false;
     player.getConnection().setActiveSessionHandler(StateRegistry.PLAY, new ClientPlaySessionHandler(server, player));
 
     configSwitchFuture.complete(null);
