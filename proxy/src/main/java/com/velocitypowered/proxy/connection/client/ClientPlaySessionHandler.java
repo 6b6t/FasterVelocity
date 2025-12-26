@@ -545,6 +545,7 @@ public class ClientPlaySessionHandler implements MinecraftSessionHandler {
 
       // Config state clears everything in the client. No need to clear later.
       spawned = false;
+      spawnFuture = new CompletableFuture<>();  // Reset for next spawn
       player.clearPlayerListHeaderAndFooterSilent();
       player.getTabList().clearAllSilent();
       if (player.getProtocolVersion().noLessThan(ProtocolVersion.MINECRAFT_1_20_2)) {
