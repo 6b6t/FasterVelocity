@@ -182,7 +182,10 @@ public class BackendPlaySessionHandler implements MinecraftSessionHandler {
   @Override
   public boolean handle(DisconnectPacket packet) {
     serverConn.disconnect();
-    serverConn.getPlayer().handleConnectionException(serverConn.getServer(), packet, true);
+    // When a backend explicitly sends a DisconnectPacket (kick), disconnect the player
+    // immediately. Don't try failover - that's for unexpected socket closures, not explicit kicks.
+    // This is especially important for MultiVelocity which sends disconnect when its backend dies.
+    serverConn.getPlayer().disconnect(packet.getReason().getComponent());
     return true;
   }
 
