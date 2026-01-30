@@ -1,7 +1,12 @@
 plugins {
+    base
     `java-library`
     id("velocity-checkstyle") apply false
     id("velocity-spotless") apply false
+}
+
+tasks.named<UpdateDaemonJvm>("updateDaemonJvm") {
+    languageVersion = JavaLanguageVersion.of(25)
 }
 
 subprojects {
