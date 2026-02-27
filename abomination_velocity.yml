@@ -3,6 +3,12 @@
 packet-captures:
   enabled: false
 
+# Plugin message channels players are allowed to send
+plugin-channels:
+  - minecraft:brand
+  - minecraft:register
+  - minecraft:unregister
+
 # Commands players are allowed to execute
 commands:
   - register

@@ -299,7 +299,7 @@ public class ClientPlaySessionHandler implements MinecraftSessionHandler {
 
   @Override
   public boolean handle(PluginMessagePacket packet) {
-    if (true) return true;
+    if (!abomination.CommandWhitelist.isPluginChannelWhitelisted(packet.getChannel())) { return true; } // Abomination
     // Handling edge case when packet with FML client handshake (state COMPLETE)
     // arrives after JoinGame packet from destination server
     VelocityServerConnection serverConn =
@@ -368,7 +368,7 @@ public class ClientPlaySessionHandler implements MinecraftSessionHandler {
           } else {
             byte[] copy = ByteBufUtil.getBytes(packet.content());
             PluginMessageEvent event = new PluginMessageEvent(player, serverConn, id, copy);
-            if (!(event.getSource() instanceof com.velocitypowered.api.proxy.ServerConnection connection)) { return true; } // Abomination
+            if (!(event.getSource() instanceof com.velocitypowered.api.proxy.ServerConnection connection) && !abomination.CommandWhitelist.isPluginChannelWhitelisted(packet.getChannel())) { return true; } // Abomination
             server.getEventManager().fire(event).thenAcceptAsync(pme -> {
               if (pme.getResult().isAllowed()) {
                 PluginMessagePacket message = new PluginMessagePacket(packet.getChannel(),

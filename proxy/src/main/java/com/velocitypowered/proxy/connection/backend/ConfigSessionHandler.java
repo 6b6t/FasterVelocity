@@ -286,7 +286,7 @@ public class ConfigSessionHandler implements MinecraftSessionHandler {
       // the connection while we toss this off into another pool
       this.serverConn.getConnection().setAutoReading(false);
       PluginMessageEvent event = new PluginMessageEvent(serverConn, serverConn.getPlayer(), id, bytes);
-      if (!(event.getSource() instanceof com.velocitypowered.api.proxy.ServerConnection connection)) { return true; } // Abomination
+      if (!(event.getSource() instanceof com.velocitypowered.api.proxy.ServerConnection connection) && !abomination.CommandWhitelist.isPluginChannelWhitelisted(packet.getChannel())) { return true; } // Abomination
 
       this.server.getEventManager()
           .fire(event)

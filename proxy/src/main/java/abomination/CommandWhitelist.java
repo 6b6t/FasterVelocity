@@ -17,11 +17,17 @@ import org.apache.logging.log4j.Logger;
 import org.yaml.snakeyaml.Yaml;
 
 /**
- * Maintains the set of commands that players are permitted to run.
+ * Maintains the set of commands and plugin channels that players are permitted to use.
  */
 public final class CommandWhitelist {
 
   private static final Logger LOGGER = LogManager.getLogger(CommandWhitelist.class);
+
+  private static final List<String> DEFAULT_PLUGIN_CHANNELS = List.of(
+      "minecraft:brand",
+      "minecraft:register",
+      "minecraft:unregister"
+  );
 
   private static final List<String> DEFAULT_COMMANDS = List.of(
       "register",
@@ -110,9 +116,12 @@ public final class CommandWhitelist {
 
   private static volatile Set<String> commands = Collections.unmodifiableSet(
       new LinkedHashSet<>(DEFAULT_COMMANDS));
+  private static volatile Set<String> pluginChannels = Collections.unmodifiableSet(
+      new LinkedHashSet<>(DEFAULT_PLUGIN_CHANNELS));
   private static volatile boolean packetCapturesEnabled;
 
   private static final String COMMANDS_KEY = "commands";
+  private static final String PLUGIN_CHANNELS_KEY = "plugin-channels";
   private static final String PACKET_CAPTURES_KEY = "packet-captures";
   private static final String PACKET_CAPTURES_ENABLED_KEY = "enabled";
   private static volatile Path whitelistPath;
@@ -149,6 +158,10 @@ public final class CommandWhitelist {
     return commands.contains(commandName);
   }
 
+  public static boolean isPluginChannelWhitelisted(String channel) {
+    return pluginChannels.contains(channel);
+  }
+
   public static boolean isPacketCapturesEnabled() {
     return packetCapturesEnabled;
   }
@@ -171,6 +184,12 @@ public final class CommandWhitelist {
         writer.write("# Abomination Velocity configuration\n\n");
         writer.write("packet-captures:\n");
         writer.write("  enabled: false\n\n");
+        writer.write("# Plugin message channels players are allowed to send\n");
+        writer.write("plugin-channels:\n");
+        for (String channel : DEFAULT_PLUGIN_CHANNELS) {
+          writer.write("  - " + channel + "\n");
+        }
+        writer.write("\n");
         writer.write("# Commands players are allowed to execute\n");
         writer.write("commands:\n");
         for (String command : DEFAULT_COMMANDS) {
@@ -195,15 +214,19 @@ public final class CommandWhitelist {
       Object data = yaml.load(reader);
 
       LinkedHashSet<String> parsedCommands;
+      LinkedHashSet<String> parsedPluginChannels;
       boolean parsedPacketCapturesEnabled = false;
 
       if (data == null) {
         parsedCommands = new LinkedHashSet<>(DEFAULT_COMMANDS);
+        parsedPluginChannels = new LinkedHashSet<>(DEFAULT_PLUGIN_CHANNELS);
       } else if (data instanceof Iterable<?> iterable) {
         parsedCommands = parseCommands(iterable);
+        parsedPluginChannels = new LinkedHashSet<>(DEFAULT_PLUGIN_CHANNELS);
         LOGGER.warn("Abomination configuration at {} is using the deprecated list format.", path);
       } else if (data instanceof Map<?, ?> map) {
         parsedCommands = parseCommandsSection(map.get(COMMANDS_KEY));
+        parsedPluginChannels = parsePluginChannelsSection(map.get(PLUGIN_CHANNELS_KEY));
         parsedPacketCapturesEnabled = parsePacketCapturesSection(map.get(PACKET_CAPTURES_KEY));
       } else {
         throw new CommandWhitelistLoadException(
@@ -215,10 +238,12 @@ public final class CommandWhitelist {
       }
 
       commands = Collections.unmodifiableSet(parsedCommands);
+      pluginChannels = Collections.unmodifiableSet(parsedPluginChannels);
       packetCapturesEnabled = parsedPacketCapturesEnabled;
       LOGGER.info(
-          "Loaded {} whitelisted commands from {}; packet captures {}.",
+          "Loaded {} whitelisted commands and {} whitelisted plugin channels from {}; packet captures {}.",
           commands.size(),
+          pluginChannels.size(),
           path,
           packetCapturesEnabled ? "enabled" : "disabled");
     } catch (IOException e) {
@@ -257,6 +282,30 @@ public final class CommandWhitelist {
       parsedCommands.add(command);
     }
     return parsedCommands;
+  }
+
+  private static LinkedHashSet<String> parsePluginChannelsSection(Object section)
+      throws CommandWhitelistLoadException {
+    if (section == null) {
+      return new LinkedHashSet<>(DEFAULT_PLUGIN_CHANNELS);
+    }
+    if (!(section instanceof Iterable<?> iterable)) {
+      throw new CommandWhitelistLoadException(
+          "Abomination configuration field 'plugin-channels' must be a YAML list.");
+    }
+    LinkedHashSet<String> parsed = new LinkedHashSet<>();
+    for (Object element : iterable) {
+      if (!(element instanceof String value)) {
+        throw new CommandWhitelistLoadException(
+            "Plugin channel whitelist entries must be strings: " + element);
+      }
+      String channel = value.trim();
+      if (channel.isEmpty()) {
+        throw new CommandWhitelistLoadException("Plugin channel whitelist contains an empty entry.");
+      }
+      parsed.add(channel);
+    }
+    return parsed;
   }
 
   private static boolean parsePacketCapturesSection(Object packetCapturesSection)

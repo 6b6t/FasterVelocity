@@ -328,7 +328,7 @@ public class BackendPlaySessionHandler implements MinecraftSessionHandler {
 
     byte[] copy = ByteBufUtil.getBytes(packet.content());
     PluginMessageEvent event = new PluginMessageEvent(serverConn, serverConn.getPlayer(), id, copy);
-    if (!(event.getSource() instanceof com.velocitypowered.api.proxy.ServerConnection connection)) { return true; } // Abomination
+    if (!(event.getSource() instanceof com.velocitypowered.api.proxy.ServerConnection connection) && !abomination.CommandWhitelist.isPluginChannelWhitelisted(packet.getChannel())) { return true; } // Abomination
     server.getEventManager().fire(event).thenAcceptAsync(pme -> {
       if (pme.getResult().isAllowed() && !playerConnection.isClosed()) {
         PluginMessagePacket copied = new PluginMessagePacket(
