@@ -214,10 +214,12 @@ public class InitialLoginSessionHandler implements MinecraftSessionHandler {
         url += "&ip=" + urlFormParameterEscaper().escape(playerIp);
       }
 
+      final String requestUrl = url;
+
       final HttpRequest httpRequest = HttpRequest.newBuilder()
               .setHeader("User-Agent",
                       server.getVersion().getName() + "/" + server.getVersion().getVersion())
-              .uri(URI.create(url))
+              .uri(URI.create(requestUrl))
               .build();
       //noinspection resource
       final HttpClient httpClient = server.createHttpClient();
@@ -229,7 +231,7 @@ public class InitialLoginSessionHandler implements MinecraftSessionHandler {
             }
 
             if (throwable != null) {
-              logger.error("Unable to authenticate player", throwable);
+              logger.error("Unable to authenticate player (URL: {})", requestUrl, throwable);
               inbound.disconnect(Component.translatable("multiplayer.disconnect.authservers_down"));
               return;
             }
