@@ -277,8 +277,10 @@ public final class ConnectionManager {
 
   @SuppressWarnings("checkstyle:MissingJavadocMethod")
   public HttpClient createHttpClient() {
+    // Do not run JDK HttpClient tasks on Netty's event loops.
+    // Using the worker EventLoopGroup as the executor can starve/block networking
+    // when authentication (HTTP) work spikes. Let HttpClient manage its own threads.
     return HttpClient.newBuilder()
-            .executor(this.workerGroup)
             .build();
   }
 
