@@ -59,6 +59,7 @@ slf4j = "org.slf4j:slf4j-api:2.0.17"
 snakeyaml = "org.yaml:snakeyaml:2.5"
 spotbugs-annotations = "com.github.spotbugs:spotbugs-annotations:4.9.8"
 terminalconsoleappender = "net.minecrell:terminalconsoleappender:1.3.0"
+zstd-jni = "com.github.luben:zstd-jni:1.5.5-5"
 
 [bundles]
 configurate3 = ["configurate3-hocon", "configurate3-yaml", "configurate3-gson"]

@@ -21,6 +21,7 @@ import static com.velocitypowered.natives.util.MoreByteBufUtils.ensureCompatible
 import static com.velocitypowered.natives.util.MoreByteBufUtils.preferredBuffer;
 import static com.velocitypowered.proxy.protocol.util.NettyPreconditions.checkFrame;
 
+import com.github.luben.zstd.Zstd;
 import com.velocitypowered.natives.compression.VelocityCompressor;
 import com.velocitypowered.proxy.network.limiter.PacketLimiter;
 import com.velocitypowered.proxy.protocol.ProtocolUtils;
@@ -29,6 +30,7 @@ import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.MessageToMessageDecoder;
 import java.util.List;
+import java.util.zip.DataFormatException;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -98,8 +100,24 @@ public class MinecraftCompressDecoder extends MessageToMessageDecoder<ByteBuf> {
     }
     ByteBuf compatibleIn = ensureCompatible(ctx.alloc(), compressor, in);
     ByteBuf uncompressed = preferredBuffer(ctx.alloc(), compressor, claimedUncompressedSize);
+    int compressedReaderIndex = compatibleIn.readerIndex();
+    int compressedLength = compatibleIn.readableBytes();
     try {
-      compressor.inflate(compatibleIn, uncompressed, claimedUncompressedSize);
+      try {
+        compressor.inflate(compatibleIn, uncompressed, claimedUncompressedSize);
+      } catch (DataFormatException e) {
+        uncompressed.clear();
+
+        byte[] compressedData = new byte[compressedLength];
+        compatibleIn.getBytes(compressedReaderIndex, compressedData);
+        byte[] decompressedData = new byte[claimedUncompressedSize];
+        long decompressedSize = Zstd.decompress(decompressedData, compressedData);
+
+        checkFrame(decompressedSize == claimedUncompressedSize,
+            "Zstd decompressed size %s does not match claimed size %s",
+            decompressedSize, claimedUncompressedSize);
+        uncompressed.writeBytes(decompressedData);
+      }
       checkFrame(uncompressed.writerIndex() == claimedUncompressedSize,
               "Decompressed size %s does not match claimed uncompressed size %s", uncompressed.writerIndex(), claimedUncompressedSize);
       if (packetLimiter != null && !packetLimiter.account(claimedUncompressedSize)) {
