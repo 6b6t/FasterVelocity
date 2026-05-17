@@ -53,6 +53,7 @@ import com.velocitypowered.proxy.connection.util.ServerListPingHandler;
 import com.velocitypowered.proxy.console.VelocityConsole;
 import com.velocitypowered.proxy.crypto.EncryptionUtils;
 import com.velocitypowered.proxy.event.VelocityEventManager;
+import com.velocitypowered.proxy.fastervelocity.CommandWhitelist;
 import com.velocitypowered.proxy.network.ConnectionManager;
 import com.velocitypowered.proxy.plugin.VelocityPluginManager;
 import com.velocitypowered.proxy.plugin.loader.VelocityPluginContainer;
@@ -413,8 +414,10 @@ public class VelocityServer implements ProxyServer, ForwardingAudience {
       }
 
       commandManager.setAnnounceProxyCommands(configuration.isAnnounceProxyCommands());
+
+      CommandWhitelist.initialize(Path.of("fastervelocity.yml"));
     } catch (Exception e) {
-      logger.error("Unable to read/load/save your velocity.toml. The server will shut down.", e);
+      logger.error("Unable to load startup configuration. The server will shut down.", e);
       LogManager.shutdown();
       System.exit(1);
     }
