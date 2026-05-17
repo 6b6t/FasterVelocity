@@ -34,6 +34,7 @@ import com.velocitypowered.api.proxy.ProxyServer;
 import com.velocitypowered.api.proxy.server.RegisteredServer;
 import com.velocitypowered.api.util.ProxyVersion;
 import com.velocitypowered.proxy.VelocityServer;
+import com.velocitypowered.proxy.fastervelocity.CommandWhitelist;
 import com.velocitypowered.proxy.util.InformationUtils;
 import java.io.BufferedWriter;
 import java.io.IOException;
@@ -132,6 +133,7 @@ public final class VelocityCommand {
       final CommandSource source = context.getSource();
       try {
         if (server.reloadConfiguration()) {
+          CommandWhitelist.reload();
           source.sendMessage(Component.translatable("velocity.command.reload-success",
               NamedTextColor.GREEN));
         } else {
