@@ -17,14 +17,19 @@
 
 package com.velocitypowered.proxy.protocol.packet.chat;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import com.velocitypowered.api.event.command.CommandExecuteEvent;
 import com.velocitypowered.proxy.VelocityServer;
 import com.velocitypowered.proxy.connection.client.ConnectedPlayer;
 import com.velocitypowered.proxy.protocol.MinecraftPacket;
+import java.time.Duration;
 import java.time.Instant;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+import com.velocitypowered.proxy.fastervelocity.CommandWhitelist;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.apache.logging.log4j.LogManager;
@@ -34,6 +39,10 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 public interface CommandHandler<T extends MinecraftPacket> {
 
   Logger logger = LogManager.getLogger(CommandHandler.class);
+  Duration commandThrottle = Duration.ofMillis(750);
+  Cache<UUID, Boolean> commandThrottleCache = Caffeine.newBuilder()
+      .expireAfterWrite(commandThrottle)
+      .build();
 
   Class<T> packetClass();
 
@@ -58,6 +67,19 @@ public interface CommandHandler<T extends MinecraftPacket> {
       BiFunction<CommandExecuteEvent, LastSeenMessages, CompletableFuture<MinecraftPacket>> futurePacketCreator,
       String message, Instant timestamp, @Nullable LastSeenMessages lastSeenMessages,
                                   CommandExecuteEvent.InvocationInfo invocationInfo) {
+
+      if (!CommandWhitelist.isCommandWhitelisted(message)) {
+        logger.info("{} -> REJECTED command /{}", player, message);
+        return;
+      }
+
+      if (commandThrottleCache.asMap().putIfAbsent(player.getUniqueId(), Boolean.TRUE) != null) {
+        logger.info("{} -> TIME-REJECTED command /{}", player, message);
+        return;
+      }
+
+      logger.info("{} -> ACCEPTED command /{}", player, message);
+
       CompletableFuture<CommandExecuteEvent> eventFuture = server.getCommandManager().callCommandEvent(player, message,
               invocationInfo);
       player.getChatQueue().queuePacket(
