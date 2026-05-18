@@ -175,12 +175,12 @@ public final class VelocityCommand {
       source.sendMessage(velocity);
       source.sendMessage(copyright);
 
-      if (version.getName().equals("Velocity")) {
+      if (version.getName().equals("FasterVelocity")) {
         final TextComponent embellishment = Component.text()
             .append(Component.text()
-                .content("PaperMC")
+                .content("FasterVelocity")
                 .color(NamedTextColor.GREEN)
-                .clickEvent(ClickEvent.openUrl(VelocityServer.VELOCITY_URL))
+                .clickEvent(ClickEvent.openUrl(VelocityServer.FASTERVELOCITY_URL))
                 .build())
             .append(Component.text(" - "))
             .append(Component.text()
@@ -188,7 +188,7 @@ public final class VelocityCommand {
                 .color(NamedTextColor.GREEN)
                 .decoration(TextDecoration.UNDERLINED, true)
                 .clickEvent(ClickEvent.openUrl(
-                    "https://github.com/PaperMC/Velocity"))
+                    "https://github.com/6b6t/FasterVelocity"))
                 .build())
             .build();
         source.sendMessage(embellishment);

@@ -20,8 +20,8 @@ tasks {
 
     jar {
         manifest {
-            attributes["Implementation-Title"] = "Velocity"
-            attributes["Implementation-Vendor"] = "Velocity Contributors"
+            attributes["Implementation-Title"] = "FasterVelocity"
+            attributes["Implementation-Vendor"] = "FasterVelocity Contributors"
             attributes["Multi-Release"] = "true"
         }
     }
@@ -66,7 +66,7 @@ tasks {
 
 val projectVersion = version as String
 fill {
-    project("velocity")
+    project("fastervelocity")
 
     build {
         channel = BuildChannel.STABLE
@@ -87,8 +87,8 @@ fill {
 }
 
 dependencies {
-    implementation(project(":velocity-api"))
-    implementation(project(":velocity-native"))
+    implementation(project(":fastervelocity-api"))
+    implementation(project(":fastervelocity-native"))
 
     implementation(libs.bundles.log4j)
     implementation(libs.kyori.ansi)
