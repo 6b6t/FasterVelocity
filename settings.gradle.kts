@@ -20,14 +20,14 @@ plugins {
     id("org.gradle.toolchains.foojay-resolver-convention") version "1.0.0"
 }
 
-rootProject.name = "velocity"
+rootProject.name = "FasterVelocity"
 
 sequenceOf(
     "api",
     "native",
     "proxy",
 ).forEach {
-    val project = ":velocity-$it"
+    val project = ":fastervelocity-$it"
     include(project)
     project(project).projectDir = file(it)
 }
