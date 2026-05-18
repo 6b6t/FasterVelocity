@@ -19,13 +19,13 @@ extensions.configure<PublishingExtension> {
         create<MavenPublication>("maven") {
             from(components["java"])
             pom {
-                name.set("Velocity")
+                name.set("FasterVelocity")
                 description.set("The modern, next-generation Minecraft server proxy")
-                url.set("https://papermc.io/software/velocity")
+                url.set("https://github.com/6b6t/FasterVelocity")
                 scm {
-                    url.set("https://github.com/PaperMC/Velocity")
-                    connection.set("scm:git:https://github.com/PaperMC/Velocity.git")
-                    developerConnection.set("scm:git:https://github.com/PaperMC/Velocity.git")
+                    url.set("https://github.com/6b6t/FasterVelocity")
+                    connection.set("scm:git:https://github.com/6b6t/FasterVelocity.git")
+                    developerConnection.set("scm:git:https://github.com/6b6t/FasterVelocity.git")
                 }
             }
         }
