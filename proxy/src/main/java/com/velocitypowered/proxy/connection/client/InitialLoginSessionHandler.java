@@ -27,6 +27,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.primitives.Longs;
 import com.velocitypowered.api.event.connection.PreLoginEvent;
 import com.velocitypowered.api.event.connection.PreLoginEvent.PreLoginComponentResult;
+import com.velocitypowered.api.event.connection.PremiumAuthAttemptListener;
 import com.velocitypowered.api.network.ProtocolVersion;
 import com.velocitypowered.api.proxy.crypto.IdentifiedKey;
 import com.velocitypowered.api.util.GameProfile;
@@ -42,6 +43,7 @@ import com.velocitypowered.proxy.protocol.packet.LoginPluginResponsePacket;
 import com.velocitypowered.proxy.protocol.packet.ServerLoginPacket;
 import com.velocitypowered.proxy.util.VelocityProperties;
 import io.netty.buffer.ByteBuf;
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -51,6 +53,7 @@ import java.security.GeneralSecurityException;
 import java.security.KeyPair;
 import java.security.MessageDigest;
 import java.security.SecureRandom;
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.Optional;
 import net.kyori.adventure.text.Component;
@@ -58,6 +61,7 @@ import net.kyori.adventure.text.format.NamedTextColor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
+import org.checkerframework.checker.nullness.qual.Nullable;
 
 /**
  * Handles authenticating the player to Mojang's servers.
@@ -78,6 +82,10 @@ public class InitialLoginSessionHandler implements MinecraftSessionHandler {
   private byte[] verify = EMPTY_BYTE_ARRAY;
   private LoginState currentState = LoginState.LOGIN_PACKET_EXPECTED;
   private final boolean forceKeyAuthentication;
+  private @MonotonicNonNull PremiumAuthAttemptListener premiumAuthAttemptListener;
+  private boolean trackPremiumAuthFailures;
+  private @Nullable Component premiumAuthFailureMessage;
+  private boolean failureRecorded;
 
   InitialLoginSessionHandler(VelocityServer server, MinecraftConnection mcConnection,
                              LoginInboundConnection inbound) {
@@ -128,6 +136,16 @@ public class InitialLoginSessionHandler implements MinecraftSessionHandler {
         return;
       }
 
+      premiumAuthAttemptListener = event.getPremiumAuthAttemptListener();
+      trackPremiumAuthFailures = event.shouldTrackPremiumAuthFailures();
+
+      Component retryMessage = event.getPremiumAuthRetryMessage();
+      if (retryMessage != null) {
+        recordPremiumAuthFailure("retry_message", true);
+        inbound.disconnect(retryMessage);
+        return;
+      }
+
       PreLoginComponentResult result = event.getResult();
       Optional<Component> disconnectReason = result.getReasonComponent();
       if (disconnectReason.isPresent()) {
@@ -153,7 +171,8 @@ public class InitialLoginSessionHandler implements MinecraftSessionHandler {
           } else {
             mcConnection.setActiveSessionHandler(StateRegistry.LOGIN,
                 new AuthSessionHandler(server, inbound,
-                    GameProfile.forOfflinePlayer(login.getUsername()), false, null));
+                    GameProfile.forOfflinePlayer(login.getUsername()), false, null,
+                    premiumAuthAttemptListener));
           }
         });
       });
@@ -223,6 +242,7 @@ public class InitialLoginSessionHandler implements MinecraftSessionHandler {
               .build();
       //noinspection resource
       final HttpClient httpClient = server.createHttpClient();
+      currentState = LoginState.SESSION_CHECK_PENDING;
       httpClient.sendAsync(httpRequest, HttpResponse.BodyHandlers.ofString())
           .whenCompleteAsync((response, throwable) -> {
             if (mcConnection.isClosed()) {
@@ -231,12 +251,14 @@ public class InitialLoginSessionHandler implements MinecraftSessionHandler {
             }
 
             if (throwable != null) {
-              logger.error("Unable to authenticate player (URL: {})", requestUrl, throwable);
-              inbound.disconnect(Component.translatable("multiplayer.disconnect.authservers_down"));
+              logger.error("Unable to authenticate player {} with Mojang session service",
+                  login.getUsername());
+              failSessionCheck();
               return;
             }
 
             if (response.statusCode() == 200) {
+              currentState = LoginState.AUTHENTICATED;
               final GameProfile profile = GENERAL_GSON.fromJson(response.body(),
                   GameProfile.class);
               // Not so fast, now we verify the public key for 1.19.1+
@@ -250,17 +272,20 @@ public class InitialLoginSessionHandler implements MinecraftSessionHandler {
               }
               // All went well, initialize the session.
               mcConnection.setActiveSessionHandler(StateRegistry.LOGIN,
-                  new AuthSessionHandler(server, inbound, profile, true, serverId));
+                  new AuthSessionHandler(server, inbound, profile, true, serverId,
+                      premiumAuthAttemptListener));
             } else if (response.statusCode() == 204) {
               // Apparently an offline-mode user logged onto this online-mode proxy.
-              inbound.disconnect(
-                  Component.translatable("velocity.error.online-mode-only", NamedTextColor.RED));
+              Component failureMessage = premiumAuthFailureMessage;
+              recordPremiumAuthFailure("session_fail", failureMessage != null);
+              inbound.disconnect(failureMessage != null ? failureMessage
+                  : Component.translatable("velocity.error.online-mode-only", NamedTextColor.RED));
             } else {
               // Something else went wrong
               logger.error(
-                  "Got an unexpected error code {} whilst contacting Mojang to log in {} ({})",
-                  response.statusCode(), login.getUsername(), playerIp);
-              inbound.disconnect(Component.translatable("multiplayer.disconnect.authservers_down"));
+                  "Got an unexpected error code {} whilst contacting Mojang to log in {}",
+                  response.statusCode(), login.getUsername());
+              failSessionCheck();
             }
           }, mcConnection.eventLoop())
           .whenComplete((ignored, throwable) -> {
@@ -290,7 +315,39 @@ public class InitialLoginSessionHandler implements MinecraftSessionHandler {
 
   @Override
   public void disconnected() {
+    if (currentState == LoginState.ENCRYPTION_REQUEST_SENT) {
+      recordPremiumAuthFailure("encryption_disconnect", false);
+    } else if (currentState == LoginState.ENCRYPTION_RESPONSE_RECEIVED) {
+      recordPremiumAuthFailure("encryption_error", false);
+    } else if (currentState == LoginState.SESSION_CHECK_PENDING) {
+      recordPremiumAuthFailure("session_disconnect", false);
+    }
     this.inbound.cleanup();
+  }
+
+  private void failSessionCheck() {
+    Component failureMessage = premiumAuthFailureMessage;
+    recordPremiumAuthFailure("session_fail", failureMessage != null);
+    if (failureMessage != null) {
+      inbound.disconnect(failureMessage);
+    } else {
+      inbound.disconnect(Component.translatable("multiplayer.disconnect.authservers_down"));
+    }
+  }
+
+  private void recordPremiumAuthFailure(String stage, boolean messageSent) {
+    if (failureRecorded || !trackPremiumAuthFailures || premiumAuthAttemptListener == null
+        || login == null) {
+      return;
+    }
+    failureRecorded = true;
+    InetAddress remoteAddress = inbound.getRemoteAddress().getAddress();
+    try {
+      premiumAuthAttemptListener.onFailure(login.getUsername(), stage, remoteAddress,
+          Instant.now(), messageSent);
+    } catch (RuntimeException exception) {
+      logger.warn("Premium authentication failure listener failed");
+    }
   }
 
   private void assertState(LoginState expectedState) {
@@ -308,6 +365,8 @@ public class InitialLoginSessionHandler implements MinecraftSessionHandler {
     LOGIN_PACKET_EXPECTED,
     LOGIN_PACKET_RECEIVED,
     ENCRYPTION_REQUEST_SENT,
-    ENCRYPTION_RESPONSE_RECEIVED
+    ENCRYPTION_RESPONSE_RECEIVED,
+    SESSION_CHECK_PENDING,
+    AUTHENTICATED
   }
 }

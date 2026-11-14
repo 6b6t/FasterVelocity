@@ -37,6 +37,10 @@ public final class PreLoginEvent implements ResultedEvent<PreLoginEvent.PreLogin
   private final String username;
   private final @Nullable UUID uuid;
   private PreLoginComponentResult result;
+  private @Nullable PremiumAuthAttemptListener premiumAuthAttemptListener;
+  private boolean trackPremiumAuthFailures;
+  private @Nullable Component premiumAuthFailureMessage;
+  private @Nullable Component premiumAuthRetryMessage;
 
   /**
    * Creates a new instance, without an associated UUID.
@@ -93,6 +97,44 @@ public final class PreLoginEvent implements ResultedEvent<PreLoginEvent.PreLogin
   @Override
   public void setResult(final @NonNull PreLoginComponentResult result) {
     this.result = Preconditions.checkNotNull(result, "result");
+  }
+
+  /**
+   * Sets an optional listener for premium authentication failures and successful proxy logins.
+   * Failure callbacks are only emitted when {@code trackFailures} is true. Success callbacks are
+   * emitted whenever the listener is present, which allows a plugin to resolve a previous failure
+   * after a login using another name.
+   */
+  public void setPremiumAuthAttemptListener(
+      @Nullable PremiumAuthAttemptListener listener, boolean trackFailures) {
+    this.premiumAuthAttemptListener = listener;
+    this.trackPremiumAuthFailures = trackFailures;
+  }
+
+  public @Nullable PremiumAuthAttemptListener getPremiumAuthAttemptListener() {
+    return premiumAuthAttemptListener;
+  }
+
+  public boolean shouldTrackPremiumAuthFailures() {
+    return trackPremiumAuthFailures;
+  }
+
+  /** Sets the player-facing reason used when a marked premium session check fails. */
+  public void setPremiumAuthFailureMessage(@Nullable Component message) {
+    this.premiumAuthFailureMessage = message;
+  }
+
+  public @Nullable Component getPremiumAuthFailureMessage() {
+    return premiumAuthFailureMessage;
+  }
+
+  /** Sets a player-facing reason for a retry after an earlier failure could not carry a message. */
+  public void setPremiumAuthRetryMessage(@Nullable Component message) {
+    this.premiumAuthRetryMessage = message;
+  }
+
+  public @Nullable Component getPremiumAuthRetryMessage() {
+    return premiumAuthRetryMessage;
   }
 
   @Override
