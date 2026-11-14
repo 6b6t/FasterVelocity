@@ -275,10 +275,15 @@ public class AuthSessionHandler implements MinecraftSessionHandler {
     }
     premiumAuthSuccessReported = true;
     InetAddress remoteAddress = inbound.getRemoteAddress().getAddress();
+    notifyPremiumAuthSuccess(premiumAuthAttemptListener, player.getUsername(), remoteAddress, Instant.now());
+  }
+
+  static void notifyPremiumAuthSuccess(PremiumAuthAttemptListener listener, String username,
+      InetAddress remoteAddress, Instant joinedAt) {
     try {
-      premiumAuthAttemptListener.onSuccess(player.getUsername(), remoteAddress, Instant.now());
+      listener.onSuccess(username, remoteAddress, joinedAt);
     } catch (RuntimeException exception) {
-      logger.warn("Premium authentication success listener failed");
+      logger.warn("Premium authentication success listener failed ({})", exception.getClass().getSimpleName());
     }
   }
 

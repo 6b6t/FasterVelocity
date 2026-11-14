@@ -84,7 +84,7 @@ public class InitialLoginSessionHandler implements MinecraftSessionHandler {
   private final boolean forceKeyAuthentication;
   private @MonotonicNonNull PremiumAuthAttemptListener premiumAuthAttemptListener;
   private boolean trackPremiumAuthFailures;
-  private @Nullable Component premiumAuthFailureMessage;
+  private @MonotonicNonNull PremiumAuthMessages premiumAuthMessages;
   private boolean failureRecorded;
 
   InitialLoginSessionHandler(VelocityServer server, MinecraftConnection mcConnection,
@@ -138,8 +138,9 @@ public class InitialLoginSessionHandler implements MinecraftSessionHandler {
 
       premiumAuthAttemptListener = event.getPremiumAuthAttemptListener();
       trackPremiumAuthFailures = event.shouldTrackPremiumAuthFailures();
+      premiumAuthMessages = PremiumAuthMessages.from(event);
 
-      Component retryMessage = event.getPremiumAuthRetryMessage();
+      Component retryMessage = premiumAuthMessages.retryMessage();
       if (retryMessage != null) {
         recordPremiumAuthFailure("retry_message", true);
         inbound.disconnect(retryMessage);
@@ -251,8 +252,8 @@ public class InitialLoginSessionHandler implements MinecraftSessionHandler {
             }
 
             if (throwable != null) {
-              logger.error("Unable to authenticate player {} with Mojang session service",
-                  login.getUsername());
+              logger.error("Unable to authenticate player {} with Mojang session service ({})",
+                  login.getUsername(), throwable.getClass().getSimpleName());
               failSessionCheck();
               return;
             }
@@ -276,10 +277,9 @@ public class InitialLoginSessionHandler implements MinecraftSessionHandler {
                       premiumAuthAttemptListener));
             } else if (response.statusCode() == 204) {
               // Apparently an offline-mode user logged onto this online-mode proxy.
-              Component failureMessage = premiumAuthFailureMessage;
+              Component failureMessage = premiumAuthMessages.failureMessage();
               recordPremiumAuthFailure("session_fail", failureMessage != null);
-              inbound.disconnect(failureMessage != null ? failureMessage
-                  : Component.translatable("velocity.error.online-mode-only", NamedTextColor.RED));
+              inbound.disconnect(sessionFailureMessage(failureMessage));
             } else {
               // Something else went wrong
               logger.error(
@@ -315,23 +315,38 @@ public class InitialLoginSessionHandler implements MinecraftSessionHandler {
 
   @Override
   public void disconnected() {
-    if (currentState == LoginState.ENCRYPTION_REQUEST_SENT) {
-      recordPremiumAuthFailure("encryption_disconnect", false);
-    } else if (currentState == LoginState.ENCRYPTION_RESPONSE_RECEIVED) {
-      recordPremiumAuthFailure("encryption_error", false);
-    } else if (currentState == LoginState.SESSION_CHECK_PENDING) {
-      recordPremiumAuthFailure("session_disconnect", false);
+    String failureStage = failureStageForDisconnect(currentState);
+    if (failureStage != null) {
+      recordPremiumAuthFailure(failureStage, false);
     }
     this.inbound.cleanup();
   }
 
   private void failSessionCheck() {
-    Component failureMessage = premiumAuthFailureMessage;
-    recordPremiumAuthFailure("session_fail", failureMessage != null);
-    if (failureMessage != null) {
-      inbound.disconnect(failureMessage);
-    } else {
-      inbound.disconnect(Component.translatable("multiplayer.disconnect.authservers_down"));
+    recordPremiumAuthFailure("auth_error", false);
+    inbound.disconnect(Component.translatable("multiplayer.disconnect.authservers_down"));
+  }
+
+  static Component sessionFailureMessage(@Nullable Component failureMessage) {
+    return failureMessage != null ? failureMessage
+        : Component.translatable("velocity.error.online-mode-only", NamedTextColor.RED);
+  }
+
+  static @Nullable String failureStageForDisconnect(LoginState state) {
+    return switch (state) {
+      case ENCRYPTION_REQUEST_SENT -> "encryption_disconnect";
+      case ENCRYPTION_RESPONSE_RECEIVED -> "encryption_error";
+      case SESSION_CHECK_PENDING -> "session_disconnect";
+      default -> null;
+    };
+  }
+
+  static void notifyFailureListener(PremiumAuthAttemptListener listener, String username, String stage,
+      InetAddress remoteAddress, Instant occurredAt, boolean messageSent) {
+    try {
+      listener.onFailure(username, stage, remoteAddress, occurredAt, messageSent);
+    } catch (RuntimeException exception) {
+      logger.warn("Premium authentication failure listener failed ({})", exception.getClass().getSimpleName());
     }
   }
 
@@ -342,12 +357,8 @@ public class InitialLoginSessionHandler implements MinecraftSessionHandler {
     }
     failureRecorded = true;
     InetAddress remoteAddress = inbound.getRemoteAddress().getAddress();
-    try {
-      premiumAuthAttemptListener.onFailure(login.getUsername(), stage, remoteAddress,
-          Instant.now(), messageSent);
-    } catch (RuntimeException exception) {
-      logger.warn("Premium authentication failure listener failed");
-    }
+    notifyFailureListener(premiumAuthAttemptListener, login.getUsername(), stage, remoteAddress,
+        Instant.now(), messageSent);
   }
 
   private void assertState(LoginState expectedState) {
@@ -361,7 +372,14 @@ public class InitialLoginSessionHandler implements MinecraftSessionHandler {
     }
   }
 
-  private enum LoginState {
+  record PremiumAuthMessages(@Nullable Component failureMessage, @Nullable Component retryMessage) {
+
+    static PremiumAuthMessages from(PreLoginEvent event) {
+      return new PremiumAuthMessages(event.getPremiumAuthFailureMessage(), event.getPremiumAuthRetryMessage());
+    }
+  }
+
+  enum LoginState {
     LOGIN_PACKET_EXPECTED,
     LOGIN_PACKET_RECEIVED,
     ENCRYPTION_REQUEST_SENT,

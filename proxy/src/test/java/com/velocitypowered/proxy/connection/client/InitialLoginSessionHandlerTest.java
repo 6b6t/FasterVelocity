@@ -1,0 +1,93 @@
+/*
+ * Copyright (C) 2018-2023 Velocity Contributors
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
+package com.velocitypowered.proxy.connection.client;
+
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.mockito.Mockito.mock;
+
+import com.velocitypowered.api.event.connection.PreLoginEvent;
+import com.velocitypowered.api.event.connection.PremiumAuthAttemptListener;
+import com.velocitypowered.api.proxy.InboundConnection;
+import java.time.Instant;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
+import org.junit.jupiter.api.Test;
+
+class InitialLoginSessionHandlerTest {
+
+  @Test
+  void capturesBothMessagesConfiguredByPreLoginPlugins() {
+    PreLoginEvent event = new PreLoginEvent(mock(InboundConnection.class), "ExampleName", null);
+    Component failure = Component.text("premium failure");
+    Component retry = Component.text("premium retry");
+    event.setPremiumAuthFailureMessage(failure);
+    event.setPremiumAuthRetryMessage(retry);
+
+    InitialLoginSessionHandler.PremiumAuthMessages captured =
+        InitialLoginSessionHandler.PremiumAuthMessages.from(event);
+
+    assertSame(failure, captured.failureMessage());
+    assertSame(retry, captured.retryMessage());
+  }
+
+  @Test
+  void sessionFailureUsesPremiumHelpWhenProvidedAndDefaultOtherwise() {
+    Component help = Component.text("premium failure");
+
+    assertSame(help, InitialLoginSessionHandler.sessionFailureMessage(help));
+    assertEquals(
+        Component.translatable("velocity.error.online-mode-only", NamedTextColor.RED),
+        InitialLoginSessionHandler.sessionFailureMessage(null));
+  }
+
+  @Test
+  void mapsDisconnectStatesToTheirFailureStages() {
+    assertEquals("encryption_disconnect", InitialLoginSessionHandler.failureStageForDisconnect(
+        InitialLoginSessionHandler.LoginState.ENCRYPTION_REQUEST_SENT));
+    assertEquals("encryption_error", InitialLoginSessionHandler.failureStageForDisconnect(
+        InitialLoginSessionHandler.LoginState.ENCRYPTION_RESPONSE_RECEIVED));
+    assertEquals("session_disconnect", InitialLoginSessionHandler.failureStageForDisconnect(
+        InitialLoginSessionHandler.LoginState.SESSION_CHECK_PENDING));
+    assertNull(InitialLoginSessionHandler.failureStageForDisconnect(
+        InitialLoginSessionHandler.LoginState.LOGIN_PACKET_RECEIVED));
+  }
+
+  @Test
+  void listenerExceptionsAreSwallowed() {
+    PremiumAuthAttemptListener listener = new PremiumAuthAttemptListener() {
+      @Override
+      public void onFailure(String username, String stage, java.net.InetAddress remoteAddress,
+          Instant occurredAt, boolean messageSent) {
+        throw new IllegalStateException("ignored listener detail");
+      }
+
+      @Override
+      public void onSuccess(String username, java.net.InetAddress remoteAddress, Instant joinedAt) {
+        throw new IllegalStateException("ignored listener detail");
+      }
+    };
+
+    assertDoesNotThrow(() -> InitialLoginSessionHandler.notifyFailureListener(
+        listener, "ExampleName", "session_fail", null, Instant.EPOCH, false));
+    assertDoesNotThrow(() -> AuthSessionHandler.notifyPremiumAuthSuccess(
+        listener, "ExampleName", null, Instant.EPOCH));
+  }
+}
