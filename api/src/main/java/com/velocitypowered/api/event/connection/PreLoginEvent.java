@@ -42,7 +42,8 @@ public final class PreLoginEvent implements ResultedEvent<PreLoginEvent.PreLogin
   private @Nullable PremiumAuthAttemptListener premiumAuthAttemptListener;
   private boolean trackPremiumAuthFailures;
   private @Nullable Component premiumAuthFailureMessage;
-  private @Nullable Component premiumAuthRetryMessage;
+  private String premiumAuthLookup = "unknown";
+  private String premiumAuthDecision = "unknown";
 
   /**
    * Creates a new instance, without an associated UUID.
@@ -128,7 +129,8 @@ public final class PreLoginEvent implements ResultedEvent<PreLoginEvent.PreLogin
     }
     InetAddress remoteAddress = connection.getRemoteAddress().getAddress();
     premiumAuthAttemptListener.onFailure(
-        username, "cache_denied", remoteAddress, Instant.now(), true);
+        username, "cache_denied", remoteAddress, Instant.now(), true, "use_online", 0, 0,
+        "none", premiumAuthLookup, premiumAuthDecision, 0, "other", "java");
   }
 
   /** Sets the player-facing reason used when a marked premium session check fails. */
@@ -140,13 +142,22 @@ public final class PreLoginEvent implements ResultedEvent<PreLoginEvent.PreLogin
     return premiumAuthFailureMessage;
   }
 
-  /** Sets a player-facing reason for a retry after an earlier failure could not carry a message. */
-  public void setPremiumAuthRetryMessage(@Nullable Component message) {
-    this.premiumAuthRetryMessage = message;
+  /** Sets sanitized premium-auth labels used only in failure telemetry. */
+  public void setPremiumAuthContext(String lookup, String decision) {
+    this.premiumAuthLookup = sanitizeTelemetryLabel(lookup);
+    this.premiumAuthDecision = sanitizeTelemetryLabel(decision);
   }
 
-  public @Nullable Component getPremiumAuthRetryMessage() {
-    return premiumAuthRetryMessage;
+  public String getPremiumAuthLookup() {
+    return premiumAuthLookup;
+  }
+
+  public String getPremiumAuthDecision() {
+    return premiumAuthDecision;
+  }
+
+  private static String sanitizeTelemetryLabel(String value) {
+    return value != null && value.matches("[a-z0-9_]{1,32}") ? value : "unknown";
   }
 
   @Override

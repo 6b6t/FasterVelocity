@@ -21,6 +21,7 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -29,7 +30,9 @@ import com.velocitypowered.api.event.connection.PremiumAuthAttemptListener;
 import com.velocitypowered.api.proxy.InboundConnection;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.net.UnknownHostException;
 import java.time.Instant;
+import java.net.http.HttpTimeoutException;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.junit.jupiter.api.Test;
@@ -37,18 +40,33 @@ import org.junit.jupiter.api.Test;
 class InitialLoginSessionHandlerTest {
 
   @Test
-  void capturesBothMessagesConfiguredByPreLoginPlugins() {
+  void capturesOnlyTheSessionFailureMessage() {
     PreLoginEvent event = new PreLoginEvent(mock(InboundConnection.class), "ExampleName", null);
     Component failure = Component.text("premium failure");
-    Component retry = Component.text("premium retry");
     event.setPremiumAuthFailureMessage(failure);
-    event.setPremiumAuthRetryMessage(retry);
 
     InitialLoginSessionHandler.PremiumAuthMessages captured =
         InitialLoginSessionHandler.PremiumAuthMessages.from(event);
 
     assertSame(failure, captured.failureMessage());
-    assertSame(retry, captured.retryMessage());
+  }
+
+  @Test
+  void preLoginCannotSupplyAMessageThatRejectsBeforeTheCurrentSessionCheck() {
+    assertThrows(NoSuchMethodException.class,
+        () -> PreLoginEvent.class.getMethod("setPremiumAuthRetryMessage", Component.class));
+  }
+
+  @Test
+  void sanitizesPremiumAuthContextLabels() {
+    PreLoginEvent event = new PreLoginEvent(mock(InboundConnection.class), "ExampleName", null);
+    event.setPremiumAuthContext("fresh_premium", "premium");
+    assertEquals("fresh_premium", event.getPremiumAuthLookup());
+    assertEquals("premium", event.getPremiumAuthDecision());
+
+    event.setPremiumAuthContext("bad label with spaces", "paid name");
+    assertEquals("unknown", event.getPremiumAuthLookup());
+    assertEquals("unknown", event.getPremiumAuthDecision());
   }
 
   @Test
@@ -61,7 +79,8 @@ class InitialLoginSessionHandlerTest {
     event.setPremiumAuthAttemptListener(new PremiumAuthAttemptListener() {
       @Override
       public void onFailure(String username, String failureStage, InetAddress remoteAddress,
-          Instant occurredAt, boolean messageSent) {
+          Instant occurredAt, boolean messageSent, String messageKind, long elapsedMs, long stageMs,
+          String httpClass, String lookup, String decision, int protocolVersion, String hostClass, String edition) {
         stage[0] = failureStage;
       }
 
@@ -87,6 +106,8 @@ class InitialLoginSessionHandlerTest {
 
   @Test
   void mapsDisconnectStatesToTheirFailureStages() {
+    assertEquals("prelogin_disconnect", InitialLoginSessionHandler.failureStageForDisconnect(
+        InitialLoginSessionHandler.LoginState.LOGIN_PACKET_RECEIVED));
     assertEquals("encryption_disconnect", InitialLoginSessionHandler.failureStageForDisconnect(
         InitialLoginSessionHandler.LoginState.ENCRYPTION_REQUEST_SENT));
     assertEquals("encryption_error", InitialLoginSessionHandler.failureStageForDisconnect(
@@ -98,11 +119,21 @@ class InitialLoginSessionHandlerTest {
   }
 
   @Test
+  void classifiesSessionServerStatusesAndTransportFailures() {
+    assertEquals("429", InitialLoginSessionHandler.httpStatusClass(429));
+    assertEquals("4xx", InitialLoginSessionHandler.httpStatusClass(403));
+    assertEquals("5xx", InitialLoginSessionHandler.httpStatusClass(503));
+    assertEquals("timeout", InitialLoginSessionHandler.httpErrorClass(new HttpTimeoutException("timeout")));
+    assertEquals("dns", InitialLoginSessionHandler.httpErrorClass(new UnknownHostException("host")));
+  }
+
+  @Test
   void listenerExceptionsAreSwallowed() {
     PremiumAuthAttemptListener listener = new PremiumAuthAttemptListener() {
       @Override
       public void onFailure(String username, String stage, java.net.InetAddress remoteAddress,
-          Instant occurredAt, boolean messageSent) {
+          Instant occurredAt, boolean messageSent, String messageKind, long elapsedMs, long stageMs,
+          String httpClass, String lookup, String decision, int protocolVersion, String hostClass, String edition) {
         throw new IllegalStateException("ignored listener detail");
       }
 
@@ -113,7 +144,8 @@ class InitialLoginSessionHandlerTest {
     };
 
     assertDoesNotThrow(() -> InitialLoginSessionHandler.notifyFailureListener(
-        listener, "ExampleName", "session_fail", null, Instant.EPOCH, false));
+        listener, "ExampleName", "session_fail", null, Instant.EPOCH, false, "online_only",
+        10, 5, "204", "fresh_premium", "premium", 769, "other", "java"));
     assertDoesNotThrow(() -> AuthSessionHandler.notifyPremiumAuthSuccess(
         listener, "ExampleName", null, Instant.EPOCH));
   }
