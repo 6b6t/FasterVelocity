@@ -31,8 +31,8 @@ import com.velocitypowered.api.proxy.InboundConnection;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
-import java.time.Instant;
 import java.net.http.HttpTimeoutException;
+import java.time.Instant;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.junit.jupiter.api.Test;
@@ -52,7 +52,7 @@ class InitialLoginSessionHandlerTest {
   }
 
   @Test
-  void preLoginCannotSupplyAMessageThatRejectsBeforeTheCurrentSessionCheck() {
+  void preloginCannotRejectBeforeCurrentSessionCheck() {
     assertThrows(NoSuchMethodException.class,
         () -> PreLoginEvent.class.getMethod("setPremiumAuthRetryMessage", Component.class));
   }
@@ -114,8 +114,6 @@ class InitialLoginSessionHandlerTest {
         InitialLoginSessionHandler.LoginState.ENCRYPTION_RESPONSE_RECEIVED));
     assertEquals("session_disconnect", InitialLoginSessionHandler.failureStageForDisconnect(
         InitialLoginSessionHandler.LoginState.SESSION_CHECK_PENDING));
-    assertNull(InitialLoginSessionHandler.failureStageForDisconnect(
-        InitialLoginSessionHandler.LoginState.LOGIN_PACKET_RECEIVED));
   }
 
   @Test

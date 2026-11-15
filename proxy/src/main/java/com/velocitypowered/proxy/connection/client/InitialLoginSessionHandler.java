@@ -43,11 +43,11 @@ import com.velocitypowered.proxy.protocol.packet.LoginPluginResponsePacket;
 import com.velocitypowered.proxy.protocol.packet.ServerLoginPacket;
 import com.velocitypowered.proxy.util.VelocityProperties;
 import io.netty.buffer.ByteBuf;
-import java.net.InetAddress;
 import java.net.ConnectException;
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
-import java.net.UnknownHostException;
 import java.net.URI;
+import java.net.UnknownHostException;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
@@ -393,17 +393,31 @@ public class InitialLoginSessionHandler implements MinecraftSessionHandler {
     while (cause.getCause() != null && cause.getCause() != cause) {
       cause = cause.getCause();
     }
-    if (cause instanceof HttpTimeoutException) return "timeout";
-    if (cause instanceof UnknownHostException) return "dns";
-    if (cause instanceof ConnectException) return "conn";
-    if (cause instanceof javax.net.ssl.SSLException) return "tls";
+    if (cause instanceof HttpTimeoutException) {
+      return "timeout";
+    }
+    if (cause instanceof UnknownHostException) {
+      return "dns";
+    }
+    if (cause instanceof ConnectException) {
+      return "conn";
+    }
+    if (cause instanceof javax.net.ssl.SSLException) {
+      return "tls";
+    }
     return "io";
   }
 
   static String httpStatusClass(int statusCode) {
-    if (statusCode == 429) return "429";
-    if (statusCode >= 500 && statusCode <= 599) return "5xx";
-    if (statusCode >= 400 && statusCode <= 499) return "4xx";
+    if (statusCode == 429) {
+      return "429";
+    }
+    if (statusCode >= 500 && statusCode <= 599) {
+      return "5xx";
+    }
+    if (statusCode >= 400 && statusCode <= 499) {
+      return "4xx";
+    }
     return "io";
   }
 
