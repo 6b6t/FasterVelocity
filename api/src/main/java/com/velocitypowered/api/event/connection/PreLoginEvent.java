@@ -11,6 +11,8 @@ import com.google.common.base.Preconditions;
 import com.velocitypowered.api.event.ResultedEvent;
 import com.velocitypowered.api.event.annotation.AwaitingEvent;
 import com.velocitypowered.api.proxy.InboundConnection;
+import java.net.InetAddress;
+import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 import net.kyori.adventure.text.Component;
@@ -37,6 +39,10 @@ public final class PreLoginEvent implements ResultedEvent<PreLoginEvent.PreLogin
   private final String username;
   private final @Nullable UUID uuid;
   private PreLoginComponentResult result;
+  private @Nullable PremiumAuthAttemptListener premiumAuthAttemptListener;
+  private boolean trackPremiumAuthFailures;
+  private @Nullable Component premiumAuthFailureMessage;
+  private @Nullable Component premiumAuthRetryMessage;
 
   /**
    * Creates a new instance, without an associated UUID.
@@ -93,6 +99,54 @@ public final class PreLoginEvent implements ResultedEvent<PreLoginEvent.PreLogin
   @Override
   public void setResult(final @NonNull PreLoginComponentResult result) {
     this.result = Preconditions.checkNotNull(result, "result");
+  }
+
+  /**
+   * Sets an optional listener for premium authentication failures and successful proxy logins.
+   * Failure callbacks are only emitted when {@code trackFailures} is true. Success callbacks are
+   * emitted whenever the listener is present, which allows a plugin to resolve a previous failure
+   * after a login using another name.
+   */
+  public void setPremiumAuthAttemptListener(
+      @Nullable PremiumAuthAttemptListener listener, boolean trackFailures) {
+    this.premiumAuthAttemptListener = listener;
+    this.trackPremiumAuthFailures = trackFailures;
+  }
+
+  public @Nullable PremiumAuthAttemptListener getPremiumAuthAttemptListener() {
+    return premiumAuthAttemptListener;
+  }
+
+  public boolean shouldTrackPremiumAuthFailures() {
+    return trackPremiumAuthFailures;
+  }
+
+  /** Records an attempt denied by a plugin's prior premium-auth failure cache. */
+  public void recordPremiumAuthCacheDenial() {
+    if (!trackPremiumAuthFailures || premiumAuthAttemptListener == null) {
+      return;
+    }
+    InetAddress remoteAddress = connection.getRemoteAddress().getAddress();
+    premiumAuthAttemptListener.onFailure(
+        username, "cache_denied", remoteAddress, Instant.now(), true);
+  }
+
+  /** Sets the player-facing reason used when a marked premium session check fails. */
+  public void setPremiumAuthFailureMessage(@Nullable Component message) {
+    this.premiumAuthFailureMessage = message;
+  }
+
+  public @Nullable Component getPremiumAuthFailureMessage() {
+    return premiumAuthFailureMessage;
+  }
+
+  /** Sets a player-facing reason for a retry after an earlier failure could not carry a message. */
+  public void setPremiumAuthRetryMessage(@Nullable Component message) {
+    this.premiumAuthRetryMessage = message;
+  }
+
+  public @Nullable Component getPremiumAuthRetryMessage() {
+    return premiumAuthRetryMessage;
   }
 
   @Override
