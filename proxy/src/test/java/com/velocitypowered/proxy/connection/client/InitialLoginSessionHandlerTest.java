@@ -89,9 +89,6 @@ class InitialLoginSessionHandlerTest {
         capturedMessageSent[0] = messageSent;
       }
 
-      @Override
-      public void onSuccess(String username, InetAddress remoteAddress, Instant joinedAt) {
-      }
     }, true);
 
     event.recordPremiumAuthCacheDenial();
@@ -152,16 +149,10 @@ class InitialLoginSessionHandlerTest {
         throw new IllegalStateException("ignored listener detail");
       }
 
-      @Override
-      public void onSuccess(String username, java.net.InetAddress remoteAddress, Instant joinedAt) {
-        throw new IllegalStateException("ignored listener detail");
-      }
     };
 
     assertDoesNotThrow(() -> InitialLoginSessionHandler.notifyFailureListener(
         listener, "ExampleName", "session_fail", null, Instant.EPOCH, false, "online_only",
         10, 5, "204", "fresh_premium", "premium", 769));
-    assertDoesNotThrow(() -> AuthSessionHandler.notifyPremiumAuthSuccess(
-        listener, "ExampleName", null, Instant.EPOCH));
   }
 }

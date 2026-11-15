@@ -186,8 +186,7 @@ public class InitialLoginSessionHandler implements MinecraftSessionHandler {
           } else {
             mcConnection.setActiveSessionHandler(StateRegistry.LOGIN,
                 new AuthSessionHandler(server, inbound,
-                    GameProfile.forOfflinePlayer(login.getUsername()), false, null,
-                    premiumAuthAttemptListener));
+                    GameProfile.forOfflinePlayer(login.getUsername()), false, null));
           }
         });
       });
@@ -290,8 +289,7 @@ public class InitialLoginSessionHandler implements MinecraftSessionHandler {
               }
               // All went well, initialize the session.
               mcConnection.setActiveSessionHandler(StateRegistry.LOGIN,
-                  new AuthSessionHandler(server, inbound, profile, true, serverId,
-                      premiumAuthAttemptListener));
+                  new AuthSessionHandler(server, inbound, profile, true, serverId));
             } else if (response.statusCode() == 204) {
               // Apparently an offline-mode user logged onto this online-mode proxy.
               Component failureMessage = premiumAuthMessages.failureMessage();
