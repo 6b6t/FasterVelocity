@@ -22,8 +22,7 @@ public interface PremiumAuthAttemptListener {
   /** Called when a marked premium authentication attempt fails. */
   void onFailure(String username, String stage, @Nullable InetAddress remoteAddress,
       Instant occurredAt, boolean messageSent, String messageKind, long elapsedMs, long stageMs,
-      String httpClass, String lookup, String decision, int protocolVersion, String hostClass,
-      String edition);
+      String httpClass, String lookup, String decision, int protocolVersion);
 
   /** Called after the player has completed proxy login. */
   void onSuccess(String username, @Nullable InetAddress remoteAddress, Instant joinedAt);

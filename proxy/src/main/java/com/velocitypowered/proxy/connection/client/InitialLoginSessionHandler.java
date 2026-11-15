@@ -146,17 +146,24 @@ public class InitialLoginSessionHandler implements MinecraftSessionHandler {
       premiumAuthMessages = PremiumAuthMessages.from(event);
       premiumAuthLookup = event.getPremiumAuthLookup();
       premiumAuthDecision = event.getPremiumAuthDecision();
+      PreLoginComponentResult result = event.getResult();
+      boolean preLoginDenied = !shouldRecordPreLoginDisconnect(result);
+      if (preLoginDenied) {
+        failureRecorded = true;
+      }
 
       if (mcConnection.isClosed()) {
         // The client may drop while plugins are making the pre-login decision.
-        recordPremiumAuthFailure("prelogin_disconnect", false, "none", "none");
+        if (!preLoginDenied) {
+          recordPremiumAuthFailure("prelogin_disconnect", false, "none", "none");
+        }
         return;
       }
 
-      PreLoginComponentResult result = event.getResult();
       Optional<Component> disconnectReason = result.getReasonComponent();
       if (disconnectReason.isPresent()) {
         // The component is guaranteed to be provided if the connection was denied.
+        failureRecorded = true;
         inbound.disconnect(disconnectReason.get());
         return;
       }
@@ -353,13 +360,17 @@ public class InitialLoginSessionHandler implements MinecraftSessionHandler {
     };
   }
 
+  static boolean shouldRecordPreLoginDisconnect(PreLoginComponentResult result) {
+    return result.getReasonComponent().isEmpty();
+  }
+
   static void notifyFailureListener(PremiumAuthAttemptListener listener, String username, String stage,
       InetAddress remoteAddress, Instant occurredAt, boolean messageSent, String messageKind,
       long elapsedMs, long stageMs, String httpClass, String lookup, String decision,
-      int protocolVersion, String hostClass, String edition) {
+      int protocolVersion) {
     try {
       listener.onFailure(username, stage, remoteAddress, occurredAt, messageSent, messageKind,
-          elapsedMs, stageMs, httpClass, lookup, decision, protocolVersion, hostClass, edition);
+          elapsedMs, stageMs, httpClass, lookup, decision, protocolVersion);
     } catch (RuntimeException exception) {
       logger.warn("Premium authentication failure listener failed ({})", exception.getClass().getSimpleName());
     }
@@ -381,7 +392,7 @@ public class InitialLoginSessionHandler implements MinecraftSessionHandler {
     notifyFailureListener(premiumAuthAttemptListener, login.getUsername(), stage, remoteAddress,
         Instant.now(), messageSent, messageKind,
         elapsedMillis(loginPacketReceivedNanos, now), elapsedMillis(stageStart, now), httpClass,
-        premiumAuthLookup, premiumAuthDecision, mcConnection.getProtocolVersion().getProtocol(), "other", "java");
+        premiumAuthLookup, premiumAuthDecision, mcConnection.getProtocolVersion().getProtocol());
   }
 
   private static long elapsedMillis(long started, long ended) {

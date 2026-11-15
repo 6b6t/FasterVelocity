@@ -19,8 +19,10 @@ package com.velocitypowered.proxy.connection.client;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -75,12 +77,16 @@ class InitialLoginSessionHandlerTest {
         new InetSocketAddress(InetAddress.getByAddress(new byte[] {1, 2, 3, 4}), 25565));
     PreLoginEvent event = new PreLoginEvent(connection, "ExampleName", null);
     String[] stage = new String[1];
+    String[] capturedMessageKind = new String[1];
+    boolean[] capturedMessageSent = new boolean[1];
     event.setPremiumAuthAttemptListener(new PremiumAuthAttemptListener() {
       @Override
       public void onFailure(String username, String failureStage, InetAddress remoteAddress,
           Instant occurredAt, boolean messageSent, String messageKind, long elapsedMs, long stageMs,
-          String httpClass, String lookup, String decision, int protocolVersion, String hostClass, String edition) {
+          String httpClass, String lookup, String decision, int protocolVersion) {
         stage[0] = failureStage;
+        capturedMessageKind[0] = messageKind;
+        capturedMessageSent[0] = messageSent;
       }
 
       @Override
@@ -91,6 +97,8 @@ class InitialLoginSessionHandlerTest {
     event.recordPremiumAuthCacheDenial();
 
     assertEquals("cache_denied", stage[0]);
+    assertEquals("use_online", capturedMessageKind[0]);
+    assertTrue(capturedMessageSent[0]);
   }
 
   @Test
@@ -116,6 +124,16 @@ class InitialLoginSessionHandlerTest {
   }
 
   @Test
+  void preloginDenialsAreNotCountedAsPremiumDisconnects() {
+    PreLoginEvent allowed = new PreLoginEvent(mock(InboundConnection.class), "ExampleName", null);
+    PreLoginEvent denied = new PreLoginEvent(mock(InboundConnection.class), "ExampleName", null);
+    denied.setResult(PreLoginEvent.PreLoginComponentResult.denied(Component.text("denied")));
+
+    assertTrue(InitialLoginSessionHandler.shouldRecordPreLoginDisconnect(allowed.getResult()));
+    assertFalse(InitialLoginSessionHandler.shouldRecordPreLoginDisconnect(denied.getResult()));
+  }
+
+  @Test
   void classifiesSessionServerStatusesAndTransportFailures() {
     assertEquals("429", InitialLoginSessionHandler.httpStatusClass(429));
     assertEquals("4xx", InitialLoginSessionHandler.httpStatusClass(403));
@@ -130,7 +148,7 @@ class InitialLoginSessionHandlerTest {
       @Override
       public void onFailure(String username, String stage, java.net.InetAddress remoteAddress,
           Instant occurredAt, boolean messageSent, String messageKind, long elapsedMs, long stageMs,
-          String httpClass, String lookup, String decision, int protocolVersion, String hostClass, String edition) {
+          String httpClass, String lookup, String decision, int protocolVersion) {
         throw new IllegalStateException("ignored listener detail");
       }
 
@@ -142,7 +160,7 @@ class InitialLoginSessionHandlerTest {
 
     assertDoesNotThrow(() -> InitialLoginSessionHandler.notifyFailureListener(
         listener, "ExampleName", "session_fail", null, Instant.EPOCH, false, "online_only",
-        10, 5, "204", "fresh_premium", "premium", 769, "other", "java"));
+        10, 5, "204", "fresh_premium", "premium", 769));
     assertDoesNotThrow(() -> AuthSessionHandler.notifyPremiumAuthSuccess(
         listener, "ExampleName", null, Instant.EPOCH));
   }

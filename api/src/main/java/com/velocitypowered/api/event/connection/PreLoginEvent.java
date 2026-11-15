@@ -130,7 +130,7 @@ public final class PreLoginEvent implements ResultedEvent<PreLoginEvent.PreLogin
     InetAddress remoteAddress = connection.getRemoteAddress().getAddress();
     premiumAuthAttemptListener.onFailure(
         username, "cache_denied", remoteAddress, Instant.now(), true, "use_online", 0, 0,
-        "none", premiumAuthLookup, premiumAuthDecision, 0, "other", "java");
+        "none", premiumAuthLookup, premiumAuthDecision, 0);
   }
 
   /** Sets the player-facing reason used when a marked premium session check fails. */
