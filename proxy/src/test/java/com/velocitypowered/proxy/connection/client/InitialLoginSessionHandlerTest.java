@@ -29,6 +29,7 @@ import static org.mockito.Mockito.when;
 import com.velocitypowered.api.event.connection.PreLoginEvent;
 import com.velocitypowered.api.event.connection.PremiumAuthAttemptListener;
 import com.velocitypowered.api.proxy.InboundConnection;
+import java.net.ConnectException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
@@ -137,6 +138,10 @@ class InitialLoginSessionHandlerTest {
     assertEquals("5xx", InitialLoginSessionHandler.httpStatusClass(503));
     assertEquals("timeout", InitialLoginSessionHandler.httpErrorClass(new HttpTimeoutException("timeout")));
     assertEquals("dns", InitialLoginSessionHandler.httpErrorClass(new UnknownHostException("host")));
+
+    HttpTimeoutException wrappedTimeout = new HttpTimeoutException("timeout");
+    wrappedTimeout.initCause(new ConnectException("connection timed out"));
+    assertEquals("timeout", InitialLoginSessionHandler.httpErrorClass(wrappedTimeout));
   }
 
   @Test

@@ -398,20 +398,30 @@ public class InitialLoginSessionHandler implements MinecraftSessionHandler {
   }
 
   static String httpErrorClass(Throwable throwable) {
+    boolean dns = false;
+    boolean connection = false;
+    boolean tls = false;
     Throwable cause = throwable;
-    while (cause.getCause() != null && cause.getCause() != cause) {
-      cause = cause.getCause();
+    for (int depth = 0; cause != null && depth < 32; depth++) {
+      if (cause instanceof HttpTimeoutException) {
+        return "timeout";
+      }
+      dns |= cause instanceof UnknownHostException;
+      connection |= cause instanceof ConnectException;
+      tls |= cause instanceof javax.net.ssl.SSLException;
+      Throwable next = cause.getCause();
+      if (next == cause) {
+        break;
+      }
+      cause = next;
     }
-    if (cause instanceof HttpTimeoutException) {
-      return "timeout";
-    }
-    if (cause instanceof UnknownHostException) {
+    if (dns) {
       return "dns";
     }
-    if (cause instanceof ConnectException) {
+    if (connection) {
       return "conn";
     }
-    if (cause instanceof javax.net.ssl.SSLException) {
+    if (tls) {
       return "tls";
     }
     return "io";

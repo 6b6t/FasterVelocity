@@ -103,10 +103,8 @@ public final class PreLoginEvent implements ResultedEvent<PreLoginEvent.PreLogin
   }
 
   /**
-   * Sets an optional listener for premium authentication failures and successful proxy logins.
-   * Failure callbacks are only emitted when {@code trackFailures} is true. Success callbacks are
-   * emitted whenever the listener is present, which allows a plugin to resolve a previous failure
-   * after a login using another name.
+   * Sets an optional listener for premium authentication failures.
+   * Failure callbacks are only emitted when {@code trackFailures} is true.
    */
   public void setPremiumAuthAttemptListener(
       @Nullable PremiumAuthAttemptListener listener, boolean trackFailures) {
