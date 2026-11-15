@@ -11,6 +11,8 @@ import com.google.common.base.Preconditions;
 import com.velocitypowered.api.event.ResultedEvent;
 import com.velocitypowered.api.event.annotation.AwaitingEvent;
 import com.velocitypowered.api.proxy.InboundConnection;
+import java.net.InetAddress;
+import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 import net.kyori.adventure.text.Component;
@@ -117,6 +119,16 @@ public final class PreLoginEvent implements ResultedEvent<PreLoginEvent.PreLogin
 
   public boolean shouldTrackPremiumAuthFailures() {
     return trackPremiumAuthFailures;
+  }
+
+  /** Records an attempt denied by a plugin's prior premium-auth failure cache. */
+  public void recordPremiumAuthCacheDenial() {
+    if (!trackPremiumAuthFailures || premiumAuthAttemptListener == null) {
+      return;
+    }
+    InetAddress remoteAddress = connection.getRemoteAddress().getAddress();
+    premiumAuthAttemptListener.onFailure(
+        username, "cache_denied", remoteAddress, Instant.now(), true);
   }
 
   /** Sets the player-facing reason used when a marked premium session check fails. */

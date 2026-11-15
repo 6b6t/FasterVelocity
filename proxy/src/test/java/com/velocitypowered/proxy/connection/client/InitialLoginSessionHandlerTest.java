@@ -22,10 +22,13 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import com.velocitypowered.api.event.connection.PreLoginEvent;
 import com.velocitypowered.api.event.connection.PremiumAuthAttemptListener;
 import com.velocitypowered.api.proxy.InboundConnection;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.time.Instant;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -46,6 +49,30 @@ class InitialLoginSessionHandlerTest {
 
     assertSame(failure, captured.failureMessage());
     assertSame(retry, captured.retryMessage());
+  }
+
+  @Test
+  void reportsPremiumCacheDenialsThroughTheLifecycleListener() throws Exception {
+    InboundConnection connection = mock(InboundConnection.class);
+    when(connection.getRemoteAddress()).thenReturn(
+        new InetSocketAddress(InetAddress.getByAddress(new byte[] {1, 2, 3, 4}), 25565));
+    PreLoginEvent event = new PreLoginEvent(connection, "ExampleName", null);
+    String[] stage = new String[1];
+    event.setPremiumAuthAttemptListener(new PremiumAuthAttemptListener() {
+      @Override
+      public void onFailure(String username, String failureStage, InetAddress remoteAddress,
+          Instant occurredAt, boolean messageSent) {
+        stage[0] = failureStage;
+      }
+
+      @Override
+      public void onSuccess(String username, InetAddress remoteAddress, Instant joinedAt) {
+      }
+    }, true);
+
+    event.recordPremiumAuthCacheDenial();
+
+    assertEquals("cache_denied", stage[0]);
   }
 
   @Test
