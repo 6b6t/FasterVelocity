@@ -23,7 +23,6 @@ import com.google.common.base.Preconditions;
 import com.velocitypowered.api.event.connection.DisconnectEvent;
 import com.velocitypowered.api.event.connection.LoginEvent;
 import com.velocitypowered.api.event.connection.PostLoginEvent;
-import com.velocitypowered.api.event.connection.PremiumAuthAttemptListener;
 import com.velocitypowered.api.event.permission.PermissionsSetupEvent;
 import com.velocitypowered.api.event.player.CookieReceiveEvent;
 import com.velocitypowered.api.event.player.GameProfileRequestEvent;
@@ -46,8 +45,6 @@ import com.velocitypowered.proxy.protocol.packet.ServerLoginSuccessPacket;
 import com.velocitypowered.proxy.protocol.packet.ServerboundCookieResponsePacket;
 import com.velocitypowered.proxy.protocol.packet.SetCompressionPacket;
 import io.netty.buffer.ByteBuf;
-import java.net.InetAddress;
-import java.time.Instant;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
@@ -57,7 +54,6 @@ import net.kyori.adventure.text.format.NamedTextColor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
-import org.checkerframework.checker.nullness.qual.Nullable;
 
 /**
  * A session handler that is activated to complete the login phase.
@@ -74,19 +70,15 @@ public class AuthSessionHandler implements MinecraftSessionHandler {
   private final boolean onlineMode;
   private State loginState = State.START; // 1.20.2+
   private final String serverIdHash;
-  private final @Nullable PremiumAuthAttemptListener premiumAuthAttemptListener;
-  private boolean premiumAuthSuccessReported;
 
   AuthSessionHandler(VelocityServer server, LoginInboundConnection inbound,
-      GameProfile profile, boolean onlineMode, String serverIdHash,
-      @Nullable PremiumAuthAttemptListener premiumAuthAttemptListener) {
+      GameProfile profile, boolean onlineMode, String serverIdHash) {
     this.server = Preconditions.checkNotNull(server, "server");
     this.inbound = Preconditions.checkNotNull(inbound, "inbound");
     this.profile = Preconditions.checkNotNull(profile, "profile");
     this.onlineMode = onlineMode;
     this.mcConnection = inbound.delegatedConnection();
     this.serverIdHash = serverIdHash;
-    this.premiumAuthAttemptListener = premiumAuthAttemptListener;
   }
 
   @Override
@@ -192,13 +184,11 @@ public class AuthSessionHandler implements MinecraftSessionHandler {
       loginState = State.ACKNOWLEDGED;
       mcConnection.setActiveSessionHandler(StateRegistry.CONFIG, new ClientConfigSessionHandler(server, connectedPlayer));
 
-      server.getEventManager().fire(new PostLoginEvent(connectedPlayer)).thenCompose(ignored -> {
-        reportPremiumAuthSuccess(connectedPlayer);
-        return connectToInitialServer(connectedPlayer);
-      }).exceptionally((ex) -> {
-        logger.error("Exception while connecting {} to initial server", connectedPlayer, ex);
-        return null;
-      });
+      server.getEventManager().fire(new PostLoginEvent(connectedPlayer))
+          .thenCompose(ignored -> connectToInitialServer(connectedPlayer)).exceptionally((ex) -> {
+            logger.error("Exception while connecting {} to initial server", connectedPlayer, ex);
+            return null;
+          });
     }
     return true;
   }
@@ -254,37 +244,17 @@ public class AuthSessionHandler implements MinecraftSessionHandler {
         if (inbound.getProtocolVersion().lessThan(ProtocolVersion.MINECRAFT_1_20_2)) {
           loginState = State.ACKNOWLEDGED;
           mcConnection.setActiveSessionHandler(StateRegistry.PLAY, new InitialConnectSessionHandler(player, server));
-          server.getEventManager().fire(new PostLoginEvent(player)).thenCompose((ignored) -> {
-            reportPremiumAuthSuccess(player);
-            return connectToInitialServer(player);
-          }).exceptionally((ex) -> {
-            logger.error("Exception while connecting {} to initial server", player, ex);
-            return null;
-          });
+          server.getEventManager().fire(new PostLoginEvent(player))
+              .thenCompose((ignored) -> connectToInitialServer(player)).exceptionally((ex) -> {
+                logger.error("Exception while connecting {} to initial server", player, ex);
+                return null;
+              });
         }
       }
     }, mcConnection.eventLoop()).exceptionally((ex) -> {
       logger.error("Exception while completing login initialisation phase for {}", player, ex);
       return null;
     });
-  }
-
-  private void reportPremiumAuthSuccess(ConnectedPlayer player) {
-    if (premiumAuthAttemptListener == null || premiumAuthSuccessReported) {
-      return;
-    }
-    premiumAuthSuccessReported = true;
-    InetAddress remoteAddress = inbound.getRemoteAddress().getAddress();
-    notifyPremiumAuthSuccess(premiumAuthAttemptListener, player.getUsername(), remoteAddress, Instant.now());
-  }
-
-  static void notifyPremiumAuthSuccess(PremiumAuthAttemptListener listener, String username,
-      InetAddress remoteAddress, Instant joinedAt) {
-    try {
-      listener.onSuccess(username, remoteAddress, joinedAt);
-    } catch (RuntimeException exception) {
-      logger.warn("Premium authentication success listener failed ({})", exception.getClass().getSimpleName());
-    }
   }
 
   private CompletableFuture<Void> connectToInitialServer(ConnectedPlayer player) {

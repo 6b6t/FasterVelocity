@@ -40,6 +40,7 @@ import io.netty.util.concurrent.GlobalEventExecutor;
 import io.netty.util.concurrent.MultithreadEventExecutorGroup;
 import java.net.InetSocketAddress;
 import java.net.http.HttpClient;
+import java.time.Duration;
 import java.util.Collection;
 import java.util.Map;
 import org.apache.logging.log4j.LogManager;
@@ -281,6 +282,7 @@ public final class ConnectionManager {
     // Using the worker EventLoopGroup as the executor can starve/block networking
     // when authentication (HTTP) work spikes. Let HttpClient manage its own threads.
     return HttpClient.newBuilder()
+            .connectTimeout(Duration.ofSeconds(5))
             .build();
   }
 
