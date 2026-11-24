@@ -1,3 +1,6 @@
+> [!IMPORTANT]
+> This repository has moved to **[git.6b6t.org/6b6t/FasterVelocity](https://git.6b6t.org/6b6t/FasterVelocity)**. This GitHub copy is archived and no longer updated.
+
 # Velocity
 
 [![Build Status](https://img.shields.io/github/actions/workflow/status/PaperMC/Velocity/gradle.yml)](https://papermc.io/downloads/velocity)
